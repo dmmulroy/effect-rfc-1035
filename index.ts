@@ -1,4 +1,5 @@
 import { Array as Arr, ParseResult, Schema } from "effect";
+import { maxLength } from "effect/Schema";
 import type { Mutable } from "effect/Types";
 
 const Nibble = Schema.Number.pipe(
@@ -56,12 +57,18 @@ const Int32 = Schema.Number.pipe(
  *
  * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.4
  */
-const Labels = Schema.Array(Uint8)
-	.pipe(Schema.maxItems(63))
-	.annotations({ identifier: "Labels", description: "63 octets or less" });
+const Label = Schema.Uint8ArrayFromSelf.pipe(
+	// @ts-expect-error
+	Schema.maxItems(63),
+	Schema.annotations({
+		identifier: "Label",
+		description: "63 octets or less",
+	}),
+);
+
+const decodeLabelSync = Schema.decodeSync(Label);
 
 type Name = typeof Name.Type;
-
 const Name = Schema.Array(Schema.Uint8ArrayFromSelf)
 	.pipe(Schema.maxItems(255))
 	.annotations({ identifier: "Name", description: "255 octets or less" });
@@ -78,7 +85,7 @@ const UdpMessages = Schema.Array(Uint8).pipe(Schema.maxItems(63)).annotations({
 
 export interface Message {
 	header: Header;
-	question: void;
+	question: Question;
 	answer: void;
 	authority: void;
 	additional: void;
@@ -235,7 +242,7 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 			);
 
 			const header = Header.make({
-				id: dataView.getUint16(0),
+				id: dataView.getUint16(0, false),
 				qr: ((dataView.getUint8(2) >> 7) & 0x01) as Bit,
 				opcode: ((dataView.getUint8(2) >> 3) & 0x0f) as Bit,
 				aa: ((dataView.getUint8(2) >> 2) & 0x01) as Bit,
@@ -244,10 +251,10 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 				ra: ((dataView.getUint8(3) >> 7) & 0x01) as Bit,
 				z: (dataView.getUint8(3) >> 4) & 0x07,
 				rcode: dataView.getUint8(3) & 0x0f,
-				qdcount: dataView.getUint16(4),
-				ancount: dataView.getUint16(6),
-				nscount: dataView.getUint16(8),
-				arcount: dataView.getUint16(10),
+				qdcount: dataView.getUint16(4, false),
+				ancount: dataView.getUint16(6, false),
+				nscount: dataView.getUint16(8, false),
+				arcount: dataView.getUint16(10, false),
 			});
 
 			return ParseResult.succeed(header);
@@ -335,6 +342,8 @@ export const Question = Schema.Struct({
 	qclass: Uint16,
 });
 
+export type Question = typeof Question.Type;
+
 export const QuestionFromUint8Array = Schema.transformOrFail(
 	Schema.Uint8ArrayFromSelf,
 	Question,
@@ -351,12 +360,12 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 				);
 			}
 
-			if (uint8Array.length > 259) {
+			if (uint8Array.length > 260) {
 				return ParseResult.fail(
 					new ParseResult.Type(
 						ast,
 						uint8Array,
-						`Question must have a maximum length of 259 bytes, received ${uint8Array.length}`,
+						`Question must have a maximum length of 260 bytes, received ${uint8Array.length}`,
 					),
 				);
 			}
@@ -371,6 +380,8 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 
 			while (true) {
 				const length = dataView.getUint8(offset);
+
+				// null terminating byte
 				if (length === 0) {
 					offset += 1;
 					break;
@@ -387,6 +398,16 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 				}
 
 				const value = uint8Array.subarray(offset + 1, offset + 1 + length);
+
+				if (value.length > 63) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`QNAME label must be 63 bytes or less, received ${value.length}`,
+						),
+					);
+				}
 				qname.push(value);
 				offset += length + 1;
 			}
@@ -403,16 +424,54 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 
 			const question = Question.make({
 				qname,
-				qtype: dataView.getUint16(offset),
-				qclass: dataView.getUint16(offset + 2),
+				qtype: dataView.getUint16(offset, false),
+				qclass: dataView.getUint16(offset + 2, false),
 			});
 
 			return ParseResult.succeed(question);
 		},
 		encode(header, _, ast) {
-			return ParseResult.fail(
-				new ParseResult.Type(ast, header, `not implemented`),
-			);
+			/** 1 zero byte (QNAME terminator) + 4 bytes for QTYPE & QCLASS */
+			const terminatorAndQFieldsLength = 5;
+			let bufferLength = terminatorAndQFieldsLength;
+
+			for (let idx = 0; idx < header.qname.length; idx++) {
+				const labelLength = header.qname[idx]?.length ?? 0;
+
+				if (labelLength > 63) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							header,
+							`QNAME label must be 63 bytes or less, received ${labelLength}`,
+						),
+					);
+				}
+
+				bufferLength += 1 + labelLength;
+			}
+
+			const buffer = new ArrayBuffer(bufferLength);
+			const out = new Uint8Array(buffer);
+			const dataView = new DataView(out.buffer);
+
+			let writeOffset = 0;
+
+			for (const label of header.qname) {
+				dataView.setUint8(writeOffset++, label.length);
+				out.set(label, writeOffset);
+				writeOffset += label.length;
+			}
+
+			// terminating zero for QNAME
+			dataView.setUint8(writeOffset++, 0x00);
+
+			dataView.setUint16(writeOffset, header.qtype, false);
+			writeOffset += 2;
+
+			dataView.setUint16(writeOffset, header.qclass, false);
+
+			return ParseResult.succeed(new Uint8Array(buffer));
 		},
 	},
 );
@@ -421,7 +480,7 @@ export const decodeQuestion = Schema.decode(QuestionFromUint8Array);
 // export const encodeQuestion = Schema.encode(QuestionFromUint8Array);
 
 export const decodeSyncQuestion = Schema.decodeSync(QuestionFromUint8Array);
-// export const encodeSyncQuestion = Schema.encodeSync(QuestionFromUint8Array);
+export const encodeSyncQuestion = Schema.encodeSync(QuestionFromUint8Array);
 
 // Example DNS header (12 bytes) as a Uint8Array
 // Fields: ID, Flags, QDCOUNT, ANCOUNT, NSCOUNT, ARCOUNT
@@ -443,7 +502,7 @@ const mockDnsHeader = new Uint8Array([
 	0x00, // ARCOUNT: 0
 ]);
 
-const mockDnsQuestion = new Uint8Array([
+const dnsQuestion = new Uint8Array([
 	7, // length 7
 	101,
 	120,
@@ -456,13 +515,24 @@ const mockDnsQuestion = new Uint8Array([
 	99,
 	111,
 	109, // "com"
-	0, // root label
+	0, // root label / null terminator
 	0,
 	1, // QTYPE: A (1)
 	0,
 	1, // QCLASS: IN (1)
 ]);
 
-const result = decodeSyncQuestion(mockDnsQuestion);
+const decoded = decodeSyncQuestion(dnsQuestion);
+const encoded = encodeSyncQuestion(decoded);
 
-console.log({ result });
+console.log(
+	JSON.stringify(
+		{
+			decoded,
+			encoded,
+			equal: JSON.stringify(dnsQuestion) === JSON.stringify(encoded),
+		},
+		null,
+		2,
+	),
+);
