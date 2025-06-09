@@ -1,5 +1,4 @@
-import { Array as Arr, ParseResult, Schema } from "effect";
-import { maxLength } from "effect/Schema";
+import { ParseResult, Schema } from "effect";
 import type { Mutable } from "effect/Types";
 
 const Nibble = Schema.Number.pipe(
@@ -66,8 +65,6 @@ const Label = Schema.Uint8ArrayFromSelf.pipe(
 	}),
 );
 
-const decodeLabelSync = Schema.decodeSync(Label);
-
 type Name = typeof Name.Type;
 const Name = Schema.Array(Schema.Uint8ArrayFromSelf)
 	.pipe(Schema.maxItems(255))
@@ -82,6 +79,51 @@ const UdpMessages = Schema.Array(Uint8).pipe(Schema.maxItems(63)).annotations({
 	identifier: "UdpMessages",
 	description: "512 octets or less",
 });
+
+/**
+ * 3.2.2. TYPE values
+ *
+ * TYPE fields are used in resource records. Note that these types are a
+ * subset of QTYPEs.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.2
+ */
+export const DnsType = {
+	/** A host address */
+	A: 1,
+	/** An authoritative name server */
+	NS: 2,
+	/** A mail destination (Obsolete - use MX) */
+	MD: 3,
+	/** A mail forwarder (Obsolete - use MX) */
+	MF: 4,
+	/** The canonical name for an alias */
+	CNAME: 5,
+	/** Marks the start of a zone of authority */
+	SOA: 6,
+	/** A mailbox domain name (EXPERIMENTAL) */
+	MB: 7,
+	/** A mail group member (EXPERIMENTAL) */
+	MG: 8,
+	/** A mail rename domain name (EXPERIMENTAL) */
+	MR: 9,
+	/** A null RR (EXPERIMENTAL) */
+	NULL: 10,
+	/** A well known service description */
+	WKS: 11,
+	/** A domain name pointer */
+	PTR: 12,
+	/** Host information */
+	HINFO: 13,
+	/** Mailbox or mail list information */
+	MINFO: 14,
+	/** Mail exchange */
+	MX: 15,
+	/** Text strings */
+	TXT: 16,
+} as const;
+
+export type DnsType = (typeof DnsType)[keyof typeof DnsType];
 
 export interface Message {
 	header: Header;
@@ -295,7 +337,7 @@ export const encodeHeader = Schema.encode(HeaderFromUint8Array);
 export const decodeSyncHeader = Schema.decodeSync(HeaderFromUint8Array);
 export const encodeSyncHeader = Schema.encodeSync(HeaderFromUint8Array);
 
-/**   +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+/**
  * 4.1.2. Question section format
  *
  * The question section is used to carry the "question" in most queries,
@@ -477,7 +519,7 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 );
 
 export const decodeQuestion = Schema.decode(QuestionFromUint8Array);
-// export const encodeQuestion = Schema.encode(QuestionFromUint8Array);
+export const encodeQuestion = Schema.encode(QuestionFromUint8Array);
 
 export const decodeSyncQuestion = Schema.decodeSync(QuestionFromUint8Array);
 export const encodeSyncQuestion = Schema.encodeSync(QuestionFromUint8Array);
@@ -521,18 +563,3 @@ const dnsQuestion = new Uint8Array([
 	0,
 	1, // QCLASS: IN (1)
 ]);
-
-const decoded = decodeSyncQuestion(dnsQuestion);
-const encoded = encodeSyncQuestion(decoded);
-
-console.log(
-	JSON.stringify(
-		{
-			decoded,
-			encoded,
-			equal: JSON.stringify(dnsQuestion) === JSON.stringify(encoded),
-		},
-		null,
-		2,
-	),
-);
