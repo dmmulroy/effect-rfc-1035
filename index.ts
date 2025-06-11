@@ -1,4 +1,6 @@
-import { ParseResult, Schema } from "effect";
+import { Effect, Either, ParseResult, Schema, SchemaAST } from "effect";
+import { of } from "effect/Chunk";
+import { uint8Array } from "effect/FastCheck";
 import type { Mutable } from "effect/Types";
 
 const Nibble = Schema.Number.pipe(
@@ -22,6 +24,8 @@ const Bit = Schema.Literal(0, 1).annotations({
 	description: "a 1-bit unsigned integer",
 });
 
+type Uint8 = typeof Uint8.Type;
+
 const Uint8 = Schema.Number.pipe(
 	Schema.between(0, 255, {
 		identifier: "Byte",
@@ -36,12 +40,17 @@ const Uint16 = Schema.Number.pipe(
 	}),
 );
 
-const Int32 = Schema.Number.pipe(
-	Schema.between(-2_147_483_648, 2_147_483_647, {
-		identifier: "Int32",
-		description: "a 32-bit signed integer",
+type Uint31 = typeof Uint31.Type;
+const Uint31 = Schema.Number.pipe(
+	Schema.between(0, 2_147_483_647, {
+		identifier: "Uint31",
+		description: "a 31-bit unsigned integer",
 	}),
 );
+
+function isUint31(num: number): num is Uint31 {
+	return Schema.is(Uint31)(num);
+}
 
 /* 2.3.4. Size limits
  *
@@ -51,11 +60,14 @@ const Int32 = Schema.Number.pipe(
  *
  * labels          63 octets or less
  * names           255 octets or less
- * TTL             positive values of a signed 32 bit number.
+ * TTL             31 bit unsigned integer
  * UDP messages    512 octets or less
  *
  * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-2.3.4
+ * @see https://datatracker.ietf.org/doc/html/rfc2181#section-8
  */
+
+/** Label */
 const Label = Schema.Uint8ArrayFromSelf.pipe(
 	// @ts-expect-error
 	Schema.maxItems(63),
@@ -65,15 +77,12 @@ const Label = Schema.Uint8ArrayFromSelf.pipe(
 	}),
 );
 
+/** `Uint8Array` containting 255 octets or less */
 type Name = typeof Name.Type;
+
 const Name = Schema.Array(Schema.Uint8ArrayFromSelf)
 	.pipe(Schema.maxItems(255))
 	.annotations({ identifier: "Name", description: "255 octets or less" });
-
-const Ttl = Int32.pipe(Schema.positive()).annotations({
-	identifier: "Ttl",
-	description: "positive values of a signed 32 bit number",
-});
 
 const UdpMessages = Schema.Array(Uint8).pipe(Schema.maxItems(63)).annotations({
 	identifier: "UdpMessages",
@@ -425,7 +434,6 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 
 				// null terminating byte
 				if (length === 0) {
-					offset += 1;
 					break;
 				}
 
@@ -453,6 +461,9 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 				qname.push(value);
 				offset += length + 1;
 			}
+
+			// Increment to the next byte
+			offset += 1;
 
 			if (offset + 4 > uint8Array.length) {
 				return ParseResult.fail(
@@ -524,42 +535,221 @@ export const encodeQuestion = Schema.encode(QuestionFromUint8Array);
 export const decodeSyncQuestion = Schema.decodeSync(QuestionFromUint8Array);
 export const encodeSyncQuestion = Schema.encodeSync(QuestionFromUint8Array);
 
-// Example DNS header (12 bytes) as a Uint8Array
-// Fields: ID, Flags, QDCOUNT, ANCOUNT, NSCOUNT, ARCOUNT
-// Let's use: ID=0x1234, QR=0, Opcode=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
-// QDCOUNT=1, ANCOUNT=0, NSCOUNT=0, ARCOUNT=0
+/**
+ * 4.1.3. Resource record format
+ *
+ * The answer, authority, and additional sections all share the same
+ * format: a variable number of resource records, where the number of
+ * records is specified in the corresponding count field in the header.
+ * Each resource record has the following format:
+ *
+ *                                      1  1  1  1  1  1
+ *        0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
+ *      +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ *      |                                               |
+ *      /                                               /
+ *      /                      NAME                     /
+ *      |                                               |
+ *      +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ *      |                      TYPE                     |
+ *      +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ *      |                     CLASS                     |
+ *      +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ *      |                      TTL                      |
+ *      |                                               |
+ *      +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ *      |                   RDLENGTH                    |
+ *      +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
+ *      /                     RDATA                     /
+ *      /                                               /
+ *      +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+ *
+ * where:
+ *
+ * NAME            a domain name to which this resource record pertains.
+ *
+ * TYPE            two octets containing one of the RR type codes.  This
+ *                 field specifies the meaning of the data in the RDATA
+ *                 field.
+ *
+ * CLASS           two octets which specify the class of the data in the
+ *                 RDATA field.
+ *
+ * TTL             a 31 bit unsigned integer that specifies the time
+ *                 interval (in seconds) that the resource record may be
+ *                 cached before it should be discarded.  Zero values are
+ *                 interpreted to mean that the RR can only be used for the
+ *                 transaction in progress, and should not be cached.
+ *
+ * RDLENGTH        an unsigned 16 bit integer that specifies the length in
+ *                 octets of the RDATA field.
+ *
+ * RDATA           a variable length string of octets that describes the
+ *                 resource.  The format of this information varies
+ *                 according to the TYPE and CLASS of the resource record.
+ *                 For example, if the TYPE is A and the CLASS is IN,
+ *                 the RDATA field is a 4 octet ARPA Internet address.
+ */
+const ResourceRecord = Schema.Struct({
+	name: Name,
+	type: Uint16,
+	class: Uint16,
+	ttl: Uint31,
+	rdlength: Uint16,
+	rdata: Schema.Uint8ArrayFromSelf,
+});
 
-const mockDnsHeader = new Uint8Array([
-	0x12,
-	0x34, // ID: 0x1234
-	0x01,
-	0x00, // Flags: 0000 0001 0000 0000 (RD=1)
-	0x00,
-	0x01, // QDCOUNT: 1
-	0x00,
-	0x00, // ANCOUNT: 0
-	0x00,
-	0x00, // NSCOUNT: 0
-	0x00,
-	0x00, // ARCOUNT: 0
-]);
+export const ResourceRecordFromUint8Array = Schema.transformOrFail(
+	Schema.Uint8ArrayFromSelf,
+	ResourceRecord,
+	{
+		strict: true,
+		decode(uint8Array, _, ast) {
+			const dataView = new DataView(
+				uint8Array.buffer,
+				uint8Array.byteOffset,
+				uint8Array.byteLength,
+			);
 
-const dnsQuestion = new Uint8Array([
-	7, // length 7
-	101,
-	120,
-	97,
-	109,
-	112,
-	108,
-	101, // "example"
-	3, // length 3
-	99,
-	111,
-	109, // "com"
-	0, // root label / null terminator
-	0,
-	1, // QTYPE: A (1)
-	0,
-	1, // QCLASS: IN (1)
-]);
+			let name: Mutable<Name> = [];
+			let offset = 0;
+
+			while (true) {
+				const byte = dataView.getUint8(offset);
+				const isPointer = byte >>> 6 === 0x3;
+
+				if (isPointer) {
+					const pointerOffset =
+						(dataView.getUint16(offset, false) << 0x14) >>> 0x14;
+
+					let previousOffset = 0;
+
+					const previousUint8Array = uint8Array.subarray(pointerOffset, offset);
+
+					const previousDataView = new DataView(
+						previousUint8Array.buffer,
+						previousUint8Array.byteOffset,
+						previousUint8Array.byteLength,
+					);
+
+					while (true) {
+						const previousLength = previousDataView.getUint8(offset);
+
+						// found the null terminating byte
+						if (previousLength === 0) {
+							break;
+						}
+
+						if (
+							previousOffset + 1 + previousLength >
+							previousUint8Array.length
+						) {
+							return ParseResult.fail(
+								new ParseResult.Type(
+									ast,
+									previousUint8Array,
+									`NAME label overruns buffer at offset ${previousOffset}`,
+								),
+							);
+						}
+
+						const value = previousUint8Array.subarray(
+							previousOffset + 1,
+							previousOffset + 1 + previousLength,
+						);
+
+						if (value.length > 63) {
+							return ParseResult.fail(
+								new ParseResult.Type(
+									ast,
+									previousOffset,
+									`NAME label must be 63 bytes or less, received ${value.length}`,
+								),
+							);
+						}
+
+						name.push(value);
+						previousOffset += previousLength + 1;
+					}
+
+					offset += 2;
+					break;
+				}
+
+				// null terminating byte
+				if (byte === 0x00) {
+					offset += 1;
+					break;
+				}
+
+				if (offset + 1 + byte > uint8Array.length) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`NAME label overruns buffer at offset ${offset}`,
+						),
+					);
+				}
+
+				const value = uint8Array.subarray(offset + 1, offset + 1 + byte);
+
+				if (value.length > 63) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`NAME label must be 63 bytes or less, received ${value.length}`,
+						),
+					);
+				}
+
+				name.push(value);
+				offset += byte + 1;
+			}
+
+			// offset 46,
+			const type = dataView.getInt16(offset, false);
+			offset += 2;
+
+			const resourceClass = dataView.getInt16(offset, false);
+			offset += 2;
+
+			const ttl = dataView.getUint32(offset, false);
+			offset += 4;
+
+			if (!isUint31(ttl)) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						ttl,
+						`TTL must be a 31-bit unsigned integer, received '${ttl}'`,
+					),
+				);
+			}
+
+			const rdlength = dataView.getInt16(offset, false);
+			offset += 2;
+
+			const rdata: Uint8Array = uint8Array.subarray(offset, rdlength + 1);
+
+			const resourceRecord = ResourceRecord.make({
+				name,
+				type,
+				class: resourceClass,
+				ttl,
+				rdlength,
+				rdata,
+			});
+
+			return ParseResult.succeed(resourceRecord);
+		},
+		encode(header, _, ast) {
+			throw "todo";
+		},
+	},
+);
+
+export const decodeResourceRecord = Schema.decode(ResourceRecordFromUint8Array);
+
+function decompressName(uint8Array: Uint8Array, ast: SchemaAST.AST) {}
