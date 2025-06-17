@@ -679,6 +679,7 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 				// null terminating byte
 				if (byte === 0x00) {
 					offset += 1;
+
 					break;
 				}
 
@@ -692,27 +693,27 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 					);
 				}
 
-				const value = uint8Array.subarray(offset + 1, offset + 1 + byte);
+				const label = uint8Array.subarray(offset + 1, offset + 1 + byte);
 
-				if (value.length > 63) {
+				if (label.length > 63) {
 					return ParseResult.fail(
 						new ParseResult.Type(
 							ast,
 							uint8Array,
-							`NAME label must be 63 bytes or less, received ${value.length}`,
+							`NAME label must be 63 bytes or less, received ${label.length}`,
 						),
 					);
 				}
 
-				name.push(value);
+				name.push(label);
 				offset += byte + 1;
 			}
 
 			// offset 46,
-			const type = dataView.getInt16(offset, false);
+			const type = dataView.getUint16(offset, false);
 			offset += 2;
 
-			const resourceClass = dataView.getInt16(offset, false);
+			const resourceClass = dataView.getUint16(offset, false);
 			offset += 2;
 
 			const ttl = dataView.getUint32(offset, false);
@@ -728,10 +729,10 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 				);
 			}
 
-			const rdlength = dataView.getInt16(offset, false);
+			const rdlength = dataView.getUint16(offset, false);
 			offset += 2;
 
-			const rdata: Uint8Array = uint8Array.subarray(offset, rdlength + 1);
+			const rdata: Uint8Array = uint8Array.subarray(offset, offset + rdlength);
 
 			const resourceRecord = ResourceRecord.make({
 				name,
@@ -745,7 +746,7 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 			return ParseResult.succeed(resourceRecord);
 		},
 		encode(header, _, ast) {
-			throw "todo";
+			return ParseResult.fail(new ParseResult.Type(ast, null, "todo"));
 		},
 	},
 );

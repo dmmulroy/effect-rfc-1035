@@ -1,4 +1,4 @@
-import { describe, expect, it } from "@effect/vitest";
+import { assert, describe, expect, it } from "@effect/vitest";
 import { Effect, Exit, FastCheck as fc } from "effect";
 import {
 	decodeHeader,
@@ -65,6 +65,77 @@ const arbitraryDnsQuestionUint8Array = arbitraryDnsQuestion.map((question) => {
 
 	return buffer;
 });
+
+// Generate a valid TTL (31-bit unsigned integer, 0-padded to 32 bits)
+const arbitraryTtl = fc.integer({ min: 0, max: 0x7fffffff }); // 2^31 - 1
+
+// Generate a valid RDLENGTH
+const arbitraryRdlength = fc.integer({ min: 0, max: 65535 });
+
+// Generate RDATA based on rdlength
+const arbitraryRdata = (rdlength: number) =>
+	fc.uint8Array({ minLength: rdlength, maxLength: rdlength });
+
+// Generate a valid resource record structure
+const arbitraryResourceRecord = fc
+	.record({
+		name: arbitraryDnsName,
+		type: arbitraryDnsType,
+		class: fc.integer({ min: 0, max: 65535 }),
+		ttl: arbitraryTtl,
+		rdlength: arbitraryRdlength,
+	})
+	.chain((record) =>
+		arbitraryRdata(record.rdlength).map((rdata) => ({
+			...record,
+			rdata,
+		})),
+	);
+
+// Generate a valid resource record as Uint8Array
+const arbitraryResourceRecordUint8Array = arbitraryResourceRecord.map(
+	(record) => {
+		// Calculate total length
+		const nameLength =
+			record.name.reduce((sum, label) => sum + label.length + 1, 0) + 1; // +1 for each length byte, +1 for terminator
+		const totalLength = nameLength + 10 + record.rdlength; // 10 bytes for TYPE, CLASS, TTL, RDLENGTH
+
+		const buffer = new Uint8Array(totalLength);
+		const dataView = new DataView(buffer.buffer);
+		let offset = 0;
+
+		// Write name labels
+		for (const label of record.name) {
+			buffer[offset++] = label.length;
+			buffer.set(label, offset);
+			offset += label.length;
+		}
+
+		// Write terminator
+		buffer[offset++] = 0;
+
+		// Write TYPE (2 bytes)
+		dataView.setUint16(offset, record.type, false);
+		offset += 2;
+
+		// Write CLASS (2 bytes)
+		dataView.setUint16(offset, record.class, false);
+		offset += 2;
+
+		// Write TTL (4 bytes, 32-bit with high bit always 0)
+		dataView.setUint32(offset, record.ttl, false);
+		offset += 4;
+
+		// Write RDLENGTH (2 bytes)
+		dataView.setUint16(offset, record.rdlength, false);
+		offset += 2;
+
+		// Write RDATA
+		buffer.set(record.rdata, offset);
+
+		return buffer;
+	},
+);
 
 describe("rfc-1035", () => {
 	describe("header", () => {
@@ -362,77 +433,6 @@ describe("rfc-1035", () => {
 	});
 
 	describe("resource record", () => {
-		// Generate a valid TTL (31-bit unsigned integer, 0-padded to 32 bits)
-		const arbitraryTtl = fc.integer({ min: 0, max: 0x7fffffff }); // 2^31 - 1
-
-		// Generate a valid RDLENGTH
-		const arbitraryRdlength = fc.integer({ min: 0, max: 65535 });
-
-		// Generate RDATA based on rdlength
-		const arbitraryRdata = (rdlength: number) =>
-			fc.uint8Array({ minLength: rdlength, maxLength: rdlength });
-
-		// Generate a valid resource record structure
-		const arbitraryResourceRecord = fc
-			.record({
-				name: arbitraryDnsName,
-				type: arbitraryDnsType,
-				class: fc.integer({ min: 0, max: 65535 }),
-				ttl: arbitraryTtl,
-				rdlength: arbitraryRdlength,
-			})
-			.chain((record) =>
-				arbitraryRdata(record.rdlength).map((rdata) => ({
-					...record,
-					rdata,
-				})),
-			);
-
-		// Generate a valid resource record as Uint8Array
-		const arbitraryResourceRecordUint8Array = arbitraryResourceRecord.map(
-			(record) => {
-				// Calculate total length
-				const nameLength =
-					record.name.reduce((sum, label) => sum + label.length + 1, 0) + 1; // +1 for each length byte, +1 for terminator
-				const totalLength = nameLength + 10 + record.rdlength; // 10 bytes for TYPE, CLASS, TTL, RDLENGTH
-
-				const buffer = new Uint8Array(totalLength);
-				const dataView = new DataView(buffer.buffer);
-				let offset = 0;
-
-				// Write name labels
-				for (const label of record.name) {
-					buffer[offset++] = label.length;
-					buffer.set(label, offset);
-					offset += label.length;
-				}
-
-				// Write terminator
-				buffer[offset++] = 0;
-
-				// Write TYPE (2 bytes)
-				dataView.setUint16(offset, record.type, false);
-				offset += 2;
-
-				// Write CLASS (2 bytes)
-				dataView.setUint16(offset, record.class, false);
-				offset += 2;
-
-				// Write TTL (4 bytes, 32-bit with high bit always 0)
-				dataView.setUint32(offset, record.ttl, false);
-				offset += 4;
-
-				// Write RDLENGTH (2 bytes)
-				dataView.setUint16(offset, record.rdlength, false);
-				offset += 2;
-
-				// Write RDATA
-				buffer.set(record.rdata, offset);
-
-				return buffer;
-			},
-		);
-
 		it.effect.prop(
 			"successfully decodes a Uint8Array to a ResourceRecord",
 			[arbitraryResourceRecordUint8Array],
@@ -478,6 +478,9 @@ describe("rfc-1035", () => {
 					let nameEndOffset = 0;
 					while (uint8Array[nameEndOffset] !== 0) {
 						const labelLength = uint8Array[nameEndOffset];
+						if (labelLength === undefined) {
+							return assert.fail();
+						}
 						nameEndOffset += labelLength + 1;
 					}
 					nameEndOffset += 1; // skip null terminator
