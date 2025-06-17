@@ -6,6 +6,7 @@ import {
 	decodeQuestion,
 	encodeQuestion,
 	decodeResourceRecord,
+	encodeResourceRecord,
 	DnsType,
 } from ".";
 
@@ -655,6 +656,51 @@ describe("rfc-1035", () => {
 					for (let i = 0; i < rdlength; i++) {
 						expect(decoded.rdata[i]).toBe(i % 256);
 					}
+				}),
+		);
+
+		it.effect.prop(
+			"encodeResourceRecord and decodeResourceRecord are inverses (roundtrip)",
+			[arbitraryResourceRecordUint8Array],
+			([uint8Array]) =>
+				Effect.gen(function* () {
+					const decoded = yield* decodeResourceRecord(uint8Array);
+					const encoded = yield* encodeResourceRecord(decoded);
+					expect(Array.from(encoded)).toEqual(Array.from(uint8Array));
+				}),
+		);
+
+		it.effect.prop(
+			"decoding then encoding yields a Uint8Array of expected length",
+			[arbitraryResourceRecordUint8Array],
+			([uint8Array]) =>
+				Effect.gen(function* () {
+					const record = yield* decodeResourceRecord(uint8Array);
+					const encoded = yield* encodeResourceRecord(record);
+					expect(encoded.length).toBe(uint8Array.length);
+				}),
+		);
+
+		it.effect.prop(
+			"encoded resource record maintains valid structure",
+			[arbitraryResourceRecord],
+			([record]) =>
+				Effect.gen(function* () {
+					const encoded = yield* encodeResourceRecord(record);
+					const decoded = yield* decodeResourceRecord(encoded);
+
+					// Check that all fields are preserved
+					expect(decoded.name.length).toBe(record.name.length);
+					for (let i = 0; i < record.name.length; i++) {
+						expect(Array.from(decoded.name[i]!)).toEqual(
+							Array.from(record.name[i]!),
+						);
+					}
+					expect(decoded.type).toBe(record.type);
+					expect(decoded.class).toBe(record.class);
+					expect(decoded.ttl).toBe(record.ttl);
+					expect(decoded.rdlength).toBe(record.rdlength);
+					expect(Array.from(decoded.rdata)).toEqual(Array.from(record.rdata));
 				}),
 		);
 	});

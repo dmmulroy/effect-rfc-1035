@@ -483,19 +483,19 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 
 			return ParseResult.succeed(question);
 		},
-		encode(header, _, ast) {
+		encode(question, _, ast) {
 			/** 1 zero byte (QNAME terminator) + 4 bytes for QTYPE & QCLASS */
 			const terminatorAndQFieldsLength = 5;
 			let bufferLength = terminatorAndQFieldsLength;
 
-			for (let idx = 0; idx < header.qname.length; idx++) {
-				const labelLength = header.qname[idx]?.length ?? 0;
+			for (let idx = 0; idx < question.qname.length; idx++) {
+				const labelLength = question.qname[idx]?.length ?? 0;
 
 				if (labelLength > 63) {
 					return ParseResult.fail(
 						new ParseResult.Type(
 							ast,
-							header,
+							question,
 							`QNAME label must be 63 bytes or less, received ${labelLength}`,
 						),
 					);
@@ -510,7 +510,7 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 
 			let writeOffset = 0;
 
-			for (const label of header.qname) {
+			for (const label of question.qname) {
 				dataView.setUint8(writeOffset++, label.length);
 				out.set(label, writeOffset);
 				writeOffset += label.length;
@@ -519,10 +519,10 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 			// terminating zero for QNAME
 			dataView.setUint8(writeOffset++, 0x00);
 
-			dataView.setUint16(writeOffset, header.qtype, false);
+			dataView.setUint16(writeOffset, question.qtype, false);
 			writeOffset += 2;
 
-			dataView.setUint16(writeOffset, header.qclass, false);
+			dataView.setUint16(writeOffset, question.qclass, false);
 
 			return ParseResult.succeed(new Uint8Array(buffer));
 		},
@@ -599,6 +599,8 @@ const ResourceRecord = Schema.Struct({
 	rdata: Schema.Uint8ArrayFromSelf,
 });
 
+export type ResourceRecord = typeof ResourceRecord.Type;
+
 export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 	Schema.Uint8ArrayFromSelf,
 	ResourceRecord,
@@ -616,65 +618,6 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 
 			while (true) {
 				const byte = dataView.getUint8(offset);
-				const isPointer = byte >>> 6 === 0x3;
-
-				if (isPointer) {
-					const pointerOffset =
-						(dataView.getUint16(offset, false) << 0x14) >>> 0x14;
-
-					let previousOffset = 0;
-
-					const previousUint8Array = uint8Array.subarray(pointerOffset, offset);
-
-					const previousDataView = new DataView(
-						previousUint8Array.buffer,
-						previousUint8Array.byteOffset,
-						previousUint8Array.byteLength,
-					);
-
-					while (true) {
-						const previousLength = previousDataView.getUint8(offset);
-
-						// found the null terminating byte
-						if (previousLength === 0) {
-							break;
-						}
-
-						if (
-							previousOffset + 1 + previousLength >
-							previousUint8Array.length
-						) {
-							return ParseResult.fail(
-								new ParseResult.Type(
-									ast,
-									previousUint8Array,
-									`NAME label overruns buffer at offset ${previousOffset}`,
-								),
-							);
-						}
-
-						const value = previousUint8Array.subarray(
-							previousOffset + 1,
-							previousOffset + 1 + previousLength,
-						);
-
-						if (value.length > 63) {
-							return ParseResult.fail(
-								new ParseResult.Type(
-									ast,
-									previousOffset,
-									`NAME label must be 63 bytes or less, received ${value.length}`,
-								),
-							);
-						}
-
-						name.push(value);
-						previousOffset += previousLength + 1;
-					}
-
-					offset += 2;
-					break;
-				}
 
 				// null terminating byte
 				if (byte === 0x00) {
@@ -745,12 +688,113 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 
 			return ParseResult.succeed(resourceRecord);
 		},
-		encode(header, _, ast) {
-			return ParseResult.fail(new ParseResult.Type(ast, null, "todo"));
+		encode(resourceRecord, _, ast) {
+			/** 1 zero byte (NAME terminator) + type + class + ttl + rdlength + rdata */
+			let bufferLength = 1 + 2 + 2 + 4 + 2 + resourceRecord.rdlength;
+
+			for (let idx = 0; idx < resourceRecord.name.length; idx++) {
+				const labelLength = resourceRecord.name[idx]?.length ?? 0;
+
+				if (labelLength > 63) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							resourceRecord,
+							`NAME label must be 63 bytes or less, received ${labelLength}`,
+						),
+					);
+				}
+
+				bufferLength += 1 + labelLength;
+			}
+
+			const buffer = new ArrayBuffer(bufferLength);
+			const out = new Uint8Array(buffer);
+			const dataView = new DataView(out.buffer);
+
+			let writeOffset = 0;
+
+			for (const label of resourceRecord.name) {
+				dataView.setUint8(writeOffset++, label.length);
+				out.set(label, writeOffset);
+				writeOffset += label.length;
+			}
+
+			// terminating zero for NAME
+			dataView.setUint8(writeOffset++, 0x00);
+
+			dataView.setUint16(writeOffset, resourceRecord.type, false);
+
+			dataView.setUint16((writeOffset += 2), resourceRecord.class, false);
+
+			dataView.setUint32((writeOffset += 2), resourceRecord.ttl, false);
+
+			dataView.setUint16((writeOffset += 4), resourceRecord.rdlength, false);
+
+			out.set(resourceRecord.rdata, (writeOffset += 2));
+
+			return ParseResult.succeed(new Uint8Array(buffer));
 		},
 	},
 );
 
 export const decodeResourceRecord = Schema.decode(ResourceRecordFromUint8Array);
+export const encodeResourceRecord = Schema.encode(ResourceRecordFromUint8Array);
 
-function decompressName(uint8Array: Uint8Array, ast: SchemaAST.AST) {}
+// if (isPointer) {
+// 	const pointerOffset =
+// 		(dataView.getUint16(offset, false) << 0x14) >>> 0x14;
+//
+// 	let previousOffset = 0;
+//
+// 	const previousUint8Array = uint8Array.subarray(pointerOffset, offset);
+//
+// 	const previousDataView = new DataView(
+// 		previousUint8Array.buffer,
+// 		previousUint8Array.byteOffset,
+// 		previousUint8Array.byteLength,
+// 	);
+//
+// 	while (true) {
+// 		const previousLength = previousDataView.getUint8(offset);
+//
+// 		// found the null terminating byte
+// 		if (previousLength === 0) {
+// 			break;
+// 		}
+//
+// 		if (
+// 			previousOffset + 1 + previousLength >
+// 			previousUint8Array.length
+// 		) {
+// 			return ParseResult.fail(
+// 				new ParseResult.Type(
+// 					ast,
+// 					previousUint8Array,
+// 					`NAME label overruns buffer at offset ${previousOffset}`,
+// 				),
+// 			);
+// 		}
+//
+// 		const value = previousUint8Array.subarray(
+// 			previousOffset + 1,
+// 			previousOffset + 1 + previousLength,
+// 		);
+//
+// 		if (value.length > 63) {
+// 			return ParseResult.fail(
+// 				new ParseResult.Type(
+// 					ast,
+// 					previousOffset,
+// 					`NAME label must be 63 bytes or less, received ${value.length}`,
+// 				),
+// 			);
+// 		}
+//
+// 		name.push(value);
+// 		previousOffset += previousLength + 1;
+// 	}
+//
+// 	offset += 2;
+// 	break;
+// }
