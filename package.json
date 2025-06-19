@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "test": "vitest run",
-    "test:watch": "vitest",
+    "test:watch": "vitest --watch",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc"
   },

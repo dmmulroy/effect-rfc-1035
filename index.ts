@@ -1,6 +1,6 @@
-import { Effect, Either, ParseResult, Schema, SchemaAST } from "effect";
-import { of } from "effect/Chunk";
+import { Either, ParseResult, Schema, SchemaAST } from "effect";
 import { uint8Array } from "effect/FastCheck";
+import { isError } from "effect/Predicate";
 import type { Mutable } from "effect/Types";
 
 const Nibble = Schema.Number.pipe(
@@ -292,20 +292,58 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 				uint8Array.byteLength,
 			);
 
+			const idResult = getUint16(dataView, 0, ast);
+			if (Either.isLeft(idResult)) {
+				return ParseResult.fail(idResult.left);
+			}
+
+			const byte2Result = getUint8(dataView, 2, ast);
+			if (Either.isLeft(byte2Result)) {
+				return ParseResult.fail(byte2Result.left);
+			}
+
+			const byte3Result = getUint8(dataView, 3, ast);
+			if (Either.isLeft(byte3Result)) {
+				return ParseResult.fail(byte3Result.left);
+			}
+
+			const qdcountResult = getUint16(dataView, 4, ast);
+			if (Either.isLeft(qdcountResult)) {
+				return ParseResult.fail(qdcountResult.left);
+			}
+
+			const ancountResult = getUint16(dataView, 6, ast);
+			if (Either.isLeft(ancountResult)) {
+				return ParseResult.fail(ancountResult.left);
+			}
+
+			const nscountResult = getUint16(dataView, 8, ast);
+			if (Either.isLeft(nscountResult)) {
+				return ParseResult.fail(nscountResult.left);
+			}
+
+			const arcountResult = getUint16(dataView, 10, ast);
+			if (Either.isLeft(arcountResult)) {
+				return ParseResult.fail(arcountResult.left);
+			}
+
+			const byte2 = byte2Result.right;
+			const byte3 = byte3Result.right;
+
 			const header = Header.make({
-				id: dataView.getUint16(0, false),
-				qr: ((dataView.getUint8(2) >> 7) & 0x01) as Bit,
-				opcode: ((dataView.getUint8(2) >> 3) & 0x0f) as Bit,
-				aa: ((dataView.getUint8(2) >> 2) & 0x01) as Bit,
-				tc: ((dataView.getUint8(2) >> 1) & 0x01) as Bit,
-				rd: (dataView.getUint8(2) & 0x01) as Bit,
-				ra: ((dataView.getUint8(3) >> 7) & 0x01) as Bit,
-				z: (dataView.getUint8(3) >> 4) & 0x07,
-				rcode: dataView.getUint8(3) & 0x0f,
-				qdcount: dataView.getUint16(4, false),
-				ancount: dataView.getUint16(6, false),
-				nscount: dataView.getUint16(8, false),
-				arcount: dataView.getUint16(10, false),
+				id: idResult.right,
+				qr: ((byte2 >> 7) & 0x01) as Bit,
+				opcode: ((byte2 >> 3) & 0x0f) as Bit,
+				aa: ((byte2 >> 2) & 0x01) as Bit,
+				tc: ((byte2 >> 1) & 0x01) as Bit,
+				rd: (byte2 & 0x01) as Bit,
+				ra: ((byte3 >> 7) & 0x01) as Bit,
+				z: (byte3 >> 4) & 0x07,
+				rcode: byte3 & 0x0f,
+				qdcount: qdcountResult.right,
+				ancount: ancountResult.right,
+				nscount: nscountResult.right,
+				arcount: arcountResult.right,
 			});
 
 			return ParseResult.succeed(header);
@@ -428,9 +466,14 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 
 			let qname: Mutable<Name> = [];
 			let offset = 0;
+			let qnameSize = 0;
 
 			while (true) {
-				const length = dataView.getUint8(offset);
+				const lengthResult = getUint8(dataView, offset, ast);
+				if (Either.isLeft(lengthResult)) {
+					return ParseResult.fail(lengthResult.left);
+				}
+				const length = lengthResult.right;
 
 				// null terminating byte
 				if (length === 0) {
@@ -447,18 +490,30 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 					);
 				}
 
-				const value = uint8Array.subarray(offset + 1, offset + 1 + length);
+				const label = uint8Array.subarray(offset + 1, offset + 1 + length);
 
-				if (value.length > 63) {
+				if (label.length > 63) {
 					return ParseResult.fail(
 						new ParseResult.Type(
 							ast,
 							uint8Array,
-							`QNAME label must be 63 bytes or less, received ${value.length}`,
+							`QNAME label must be 63 bytes or less, received ${label.length}`,
 						),
 					);
 				}
-				qname.push(value);
+
+				qnameSize += label.buffer.byteLength;
+
+				if (qnameSize > 255) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`QNAME exceeded maximum size of 255 bytes`,
+						),
+					);
+				}
+				qname.push(label);
 				offset += length + 1;
 			}
 
@@ -475,10 +530,22 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 				);
 			}
 
+			const qtypeResult = getUint16(dataView, offset, ast);
+			if (Either.isLeft(qtypeResult)) {
+				return ParseResult.fail(qtypeResult.left);
+			}
+			const qtype = qtypeResult.right;
+
+			const qclassResult = getUint16(dataView, offset + 2, ast);
+			if (Either.isLeft(qclassResult)) {
+				return ParseResult.fail(qclassResult.left);
+			}
+			const qclass = qclassResult.right;
+
 			const question = Question.make({
 				qname,
-				qtype: dataView.getUint16(offset, false),
-				qclass: dataView.getUint16(offset + 2, false),
+				qtype,
+				qclass,
 			});
 
 			return ParseResult.succeed(question);
@@ -488,6 +555,17 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 			const terminatorAndQFieldsLength = 5;
 			let bufferLength = terminatorAndQFieldsLength;
 
+			if (question.qname.length > 255) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						question,
+						`QNAME length must be 255 bytes or less, received ${question.qname.length}`,
+					),
+				);
+			}
+
+			let qnameSize = 0;
 			for (let idx = 0; idx < question.qname.length; idx++) {
 				const labelLength = question.qname[idx]?.length ?? 0;
 
@@ -502,6 +580,17 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 				}
 
 				bufferLength += 1 + labelLength;
+				qnameSize += labelLength;
+
+				if (qnameSize > 255) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`QNAME exceeded maximum size of 255 bytes`,
+						),
+					);
+				}
 			}
 
 			const buffer = new ArrayBuffer(bufferLength);
@@ -615,9 +704,25 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 
 			let name: Mutable<Name> = [];
 			let offset = 0;
+			let nameSize = 0;
 
 			while (true) {
-				const byte = dataView.getUint8(offset);
+				const byteResult = ParseResult.try({
+					try: () => dataView.getUint8(offset),
+					catch(cause) {
+						return new ParseResult.Type(
+							ast,
+							dataView,
+							isError(cause) ? cause.message : "Malformed input",
+						);
+					},
+				});
+
+				if (Either.isLeft(byteResult)) {
+					return ParseResult.fail(byteResult.left);
+				}
+
+				const byte = byteResult.right;
 
 				// null terminating byte
 				if (byte === 0x00) {
@@ -648,18 +753,42 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 					);
 				}
 
+				nameSize += label.byteLength;
+
+				if (nameSize > 255) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`QNAME exceeded maximum size of 255 bytes`,
+						),
+					);
+				}
+
 				name.push(label);
 				offset += byte + 1;
 			}
 
 			// offset 46,
-			const type = dataView.getUint16(offset, false);
+			const typeResult = getUint16(dataView, offset, ast);
+			if (Either.isLeft(typeResult)) {
+				return ParseResult.fail(typeResult.left);
+			}
+			const type = typeResult.right;
 			offset += 2;
 
-			const resourceClass = dataView.getUint16(offset, false);
+			const resourceClassResult = getUint16(dataView, offset, ast);
+			if (Either.isLeft(resourceClassResult)) {
+				return ParseResult.fail(resourceClassResult.left);
+			}
+			const resourceClass = resourceClassResult.right;
 			offset += 2;
 
-			const ttl = dataView.getUint32(offset, false);
+			const ttlResult = getUint32(dataView, offset, ast);
+			if (Either.isLeft(ttlResult)) {
+				return ParseResult.fail(ttlResult.left);
+			}
+			const ttl = ttlResult.right;
 			offset += 4;
 
 			if (!isUint31(ttl)) {
@@ -672,10 +801,24 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 				);
 			}
 
-			const rdlength = dataView.getUint16(offset, false);
+			const rdlengthResult = getUint16(dataView, offset, ast);
+			if (Either.isLeft(rdlengthResult)) {
+				return ParseResult.fail(rdlengthResult.left);
+			}
+			const rdlength = rdlengthResult.right;
 			offset += 2;
 
 			const rdata: Uint8Array = uint8Array.subarray(offset, offset + rdlength);
+
+			if (rdata.byteLength !== rdlength) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						uint8Array,
+						`RDATA length did not match RDLENGTH. Expected '${rdlength}, received '${rdata.byteLength}'`,
+					),
+				);
+			}
 
 			const resourceRecord = ResourceRecord.make({
 				name,
@@ -692,6 +835,17 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 			/** 1 zero byte (NAME terminator) + type + class + ttl + rdlength + rdata */
 			let bufferLength = 1 + 2 + 2 + 4 + 2 + resourceRecord.rdlength;
 
+			if (resourceRecord.name.length > 255) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						resourceRecord,
+						`NAME length must be 255 bytes or less, received ${resourceRecord.name.length}`,
+					),
+				);
+			}
+
+			let nameSize = 0;
 			for (let idx = 0; idx < resourceRecord.name.length; idx++) {
 				const labelLength = resourceRecord.name[idx]?.length ?? 0;
 
@@ -706,6 +860,16 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 				}
 
 				bufferLength += 1 + labelLength;
+				nameSize += labelLength;
+				if (nameSize > 255) {
+					return ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`QNAME exceeded maximum size of 255 bytes`,
+						),
+					);
+				}
 			}
 
 			const buffer = new ArrayBuffer(bufferLength);
@@ -798,3 +962,54 @@ export const encodeResourceRecord = Schema.encode(ResourceRecordFromUint8Array);
 // 	offset += 2;
 // 	break;
 // }
+
+function getUint8(
+	dataView: DataView,
+	offset: number,
+	ast: SchemaAST.AST,
+): Either.Either<number, ParseResult.ParseIssue> {
+	return ParseResult.try({
+		try: () => dataView.getUint8(offset),
+		catch(cause) {
+			return new ParseResult.Type(
+				ast,
+				dataView,
+				isError(cause) ? cause.message : "Malformed input",
+			);
+		},
+	});
+}
+
+function getUint16(
+	dataView: DataView,
+	offset: number,
+	ast: SchemaAST.AST,
+): Either.Either<number, ParseResult.ParseIssue> {
+	return ParseResult.try({
+		try: () => dataView.getUint16(offset, false),
+		catch(cause) {
+			return new ParseResult.Type(
+				ast,
+				dataView,
+				isError(cause) ? cause.message : "Malformed input",
+			);
+		},
+	});
+}
+
+function getUint32(
+	dataView: DataView,
+	offset: number,
+	ast: SchemaAST.AST,
+): Either.Either<number, ParseResult.ParseIssue> {
+	return ParseResult.try({
+		try: () => dataView.getUint32(offset, false),
+		catch(cause) {
+			return new ParseResult.Type(
+				ast,
+				dataView,
+				isError(cause) ? cause.message : "Malformed input",
+			);
+		},
+	});
+}
