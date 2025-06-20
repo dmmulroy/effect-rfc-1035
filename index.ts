@@ -1,4 +1,4 @@
-import { Either, ParseResult, Schema, SchemaAST } from "effect";
+import { Either, Encoding, ParseResult, Schema, SchemaAST } from "effect";
 import { uint8Array } from "effect/FastCheck";
 import { isError } from "effect/Predicate";
 import type { Mutable } from "effect/Types";
@@ -67,21 +67,101 @@ function isUint31(num: number): num is Uint31 {
  * @see https://datatracker.ietf.org/doc/html/rfc2181#section-8
  */
 
-/** Label */
-const Label = Schema.Uint8ArrayFromSelf.pipe(
-	// @ts-expect-error
-	Schema.maxItems(63),
+const Digit = Schema.Number.pipe(
+	Schema.between(48, 57),
 	Schema.annotations({
-		identifier: "Label",
-		description: "63 octets or less",
+		identifier: "Digit",
+		description: "A single digit between 0 and 9",
 	}),
 );
 
-/** `Uint8Array` containting 255 octets or less */
+const UppercaseAsciiAlphabet = Schema.Number.pipe(
+	Schema.between(65, 90),
+	Schema.annotations({
+		identifier: "UppercaseAsciiAlphabet",
+		description: "Valid ASCII code for uppercase english letters",
+	}),
+);
+
+const LowerscaseAsciiAlphabet = Schema.Number.pipe(
+	Schema.between(97, 122),
+	Schema.annotations({
+		identifier: "LowerscaseAsciiAlphabet",
+		description: "Valid ASCII code for lowercase english letters",
+	}),
+);
+
+class AsciiHyphen extends Schema.Literal(45).annotations({
+	identifier: "AsciiHyphen",
+	description: "Valid ASCII code for hypen (-)",
+}) {}
+
+const isHypen = (value: unknown) => Schema.is(AsciiHyphen)(value);
+
+class LabelCharacter extends Schema.Union(
+	Digit,
+	UppercaseAsciiAlphabet,
+	LowerscaseAsciiAlphabet,
+	AsciiHyphen,
+).annotations({
+	identifier: "LabelCharacter",
+	description: "Valid Label characters",
+}) {}
+
+const isValidLabelCharacter = (value: unknown): value is LabelCharacter =>
+	Schema.is(LabelCharacter)(value);
+
+/** Label */
+export const Label = Schema.Uint8ArrayFromSelf.pipe(
+	Schema.filter((uint8Array) => {
+		if (uint8Array.byteLength === 0 || uint8Array.byteLength > 63) {
+			return "Label must be between 1 and 63 bytes";
+		}
+
+		for (let idx = 0; idx < uint8Array.byteLength; idx++) {
+			const byte = uint8Array.at(idx);
+			const previousByte = idx > 0 ? uint8Array.at(idx - 1) : undefined;
+
+			if (!isValidLabelCharacter(byte)) {
+				return `Invalid Label character. Labels must contain only ASCII letters (A-Z, a-z), digits (0-9), and hyphens (-). Found invalid character '${byte}'.`;
+			}
+
+			if (idx === 0 && isHypen(byte)) {
+				return "Label can not start with hypen (-)";
+			}
+
+			if (idx === uint8Array.length - 1 && isHypen(byte)) {
+				return "Label can not end with hypen (-)";
+			}
+
+			if (isHypen(previousByte) && isHypen(byte)) {
+				return "Label can not have two consecutive hypens (-)";
+			}
+		}
+
+		return undefined;
+	}),
+	Schema.annotations({
+		identifier: "Label",
+		description:
+			"63 octets or less and only ASCII letters (A-Z, a-z), digits (0-9), and hyphens (-)",
+	}),
+);
+
 type Name = typeof Name.Type;
 
-const Name = Schema.Array(Schema.Uint8ArrayFromSelf)
-	.pipe(Schema.maxItems(255))
+export const Name = Schema.Array(Label)
+	.pipe(
+		Schema.filter((labels) => {
+			const bytes = labels.reduce((sum, label) => (sum += label.byteLength), 0);
+			console.log({ bytes });
+
+			if (bytes === 0 || bytes > 255) {
+				return `Name must be between 1 and 255 bytes, recieved '${bytes}'`;
+			}
+			return undefined;
+		}),
+	)
 	.annotations({ identifier: "Name", description: "255 octets or less" });
 
 const UdpMessages = Schema.Array(Uint8).pipe(Schema.maxItems(63)).annotations({
@@ -137,10 +217,18 @@ export type DnsType = (typeof DnsType)[keyof typeof DnsType];
 export interface Message {
 	header: Header;
 	question: Question;
-	answer: void;
-	authority: void;
-	additional: void;
+	answer: ResourceRecord;
+	authority: ResourceRecord;
+	additional: ResourceRecord;
 }
+
+// when encoding question + resource record names, reverse the name a store in a
+// prefix tree where the leaf/word nodes hold the offset index of where it was
+// previously encoded.
+// arpa * 26
+// - isi
+//   - f * 20
+//     - foo *
 
 /**
  * 4.1.1. Header section format
@@ -330,10 +418,52 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 			const byte2 = byte2Result.right;
 			const byte3 = byte3Result.right;
 
+			const qr = ((byte2 >> 7) & 0x01) as Bit;
+			const opcode = ((byte2 >> 3) & 0x0f) as Bit;
+			const aa = ((byte2 >> 2) & 0x01) as Bit;
+			const z = (byte3 >> 4) & 0x07;
+			const rcode = byte3 & 0x0f;
+
+			if (opcode > 2) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						opcode,
+						`Opcode must be 0, 1, or 2. Recievied '${opcode}'`,
+					),
+				);
+			}
+
+			if (qr === 0 && aa === 1) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						aa,
+						`Authoritative Answer bit should be 0 for questions, recieved 1`,
+					),
+				);
+			}
+
+			if (z !== 0) {
+				return ParseResult.fail(
+					new ParseResult.Type(ast, z, `Z must be 0. Recievied '${z}'`),
+				);
+			}
+
+			if (rcode > 5) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						rcode,
+						`RCODE must be 0, 1, 2, 3, 4, or 5. Recievied '${opcode}'`,
+					),
+				);
+			}
+
 			const header = Header.make({
 				id: idResult.right,
 				qr: ((byte2 >> 7) & 0x01) as Bit,
-				opcode: ((byte2 >> 3) & 0x0f) as Bit,
+				opcode,
 				aa: ((byte2 >> 2) & 0x01) as Bit,
 				tc: ((byte2 >> 1) & 0x01) as Bit,
 				rd: (byte2 & 0x01) as Bit,
