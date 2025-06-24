@@ -1,4 +1,13 @@
-import { Either, Encoding, ParseResult, Schema, SchemaAST } from "effect";
+import {
+	Effect,
+	Either,
+	Encoding,
+	ParseResult,
+	Schema,
+	SchemaAST,
+	Struct,
+} from "effect";
+import { decode } from "effect/Duration";
 import { uint8Array } from "effect/FastCheck";
 import { isError } from "effect/Predicate";
 import type { Mutable } from "effect/Types";
@@ -148,13 +157,15 @@ export const Label = Schema.Uint8ArrayFromSelf.pipe(
 	}),
 );
 
+const decodeLabel = Schema.decode(Label);
+const encodeLabelFromUnknown = Schema.encodeUnknown(Label);
+
 type Name = typeof Name.Type;
 
 export const Name = Schema.Array(Label)
 	.pipe(
 		Schema.filter((labels) => {
 			const bytes = labels.reduce((sum, label) => (sum += label.byteLength), 0);
-			console.log({ bytes });
 
 			if (bytes === 0 || bytes > 255) {
 				return `Name must be between 1 and 255 bytes, recieved '${bytes}'`;
@@ -163,6 +174,124 @@ export const Name = Schema.Array(Label)
 		}),
 	)
 	.annotations({ identifier: "Name", description: "255 octets or less" });
+
+export const NameFromUint8Array = Schema.transformOrFail(
+	Schema.Uint8ArrayFromSelf,
+	Name,
+	{
+		strict: true,
+		decode(uint8Array, _, ast) {
+			return Effect.gen(function* () {
+				const dataView = new DataView(
+					uint8Array.buffer,
+					uint8Array.byteOffset,
+					uint8Array.byteLength,
+				);
+
+				let name: Mutable<Name> = [];
+				let offset = 0;
+				let nameSize = 0;
+
+				while (true) {
+					const lengthResult = getUint8(dataView, offset, ast);
+
+					if (Either.isLeft(lengthResult)) {
+						return yield* ParseResult.fail(lengthResult.left);
+					}
+					const length = lengthResult.right;
+
+					// null terminating byte
+					if (length === 0) {
+						break;
+					}
+
+					if (offset + 1 + length > uint8Array.length) {
+						return yield* ParseResult.fail(
+							new ParseResult.Type(
+								ast,
+								uint8Array,
+								`NAME label overruns buffer at offset ${offset}`,
+							),
+						);
+					}
+
+					const label = yield* decodeLabel(
+						uint8Array.subarray(offset + 1, offset + 1 + length),
+					).pipe(Effect.mapError(Struct.get("issue")));
+
+					nameSize += label.byteLength;
+
+					if (nameSize > 255) {
+						return yield* ParseResult.fail(
+							new ParseResult.Type(
+								ast,
+								uint8Array,
+								`NAME exceeded maximum size of 255 bytes`,
+							),
+						);
+					}
+					name.push(label);
+					offset += length + 1;
+				}
+
+				return name;
+			});
+		},
+		encode(name, _, ast) {
+			return Effect.gen(function* () {
+				if (name.length === 0) {
+					return yield* ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							name,
+							`NAME length must be at least 1 byte or more, received ${name.length}`,
+						),
+					);
+				}
+				// length bytes + terminator byte
+				let nameSize = name.length + 1;
+
+				for (let idx = 0; idx < name.length; idx++) {
+					const label = yield* encodeLabelFromUnknown(name[idx]).pipe(
+						Effect.mapError(Struct.get("issue")),
+					);
+
+					nameSize += label.byteLength;
+
+					if (nameSize > 255) {
+						return yield* ParseResult.fail(
+							new ParseResult.Type(
+								ast,
+								name,
+								`NAME length must be 255 bytes or less, received ${name.length}`,
+							),
+						);
+					}
+				}
+
+				const buffer = new ArrayBuffer(nameSize);
+				const out = new Uint8Array(buffer);
+				const dataView = new DataView(out.buffer);
+
+				let writeOffset = 0;
+
+				for (const label of name) {
+					yield* setUint8(dataView, writeOffset++, label.length, ast);
+					yield* uint8ArraySet(out, label, writeOffset, ast);
+					writeOffset += label.length;
+				}
+
+				// terminating zero for QNAME
+				yield* setUint8(dataView, writeOffset++, 0x00, ast);
+
+				return out;
+			});
+		},
+	},
+);
+
+export const decodeNameFromUint8Array = Schema.decode(NameFromUint8Array);
+export const encodeNameFromUint8Array = Schema.encode(NameFromUint8Array);
 
 const UdpMessages = Schema.Array(Uint8).pipe(Schema.maxItems(63)).annotations({
 	identifier: "UdpMessages",
@@ -177,7 +306,65 @@ const UdpMessages = Schema.Array(Uint8).pipe(Schema.maxItems(63)).annotations({
  *
  * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.2
  */
-export const DnsType = {
+export const DnsType = Schema.Literal(
+	/** A - A host address */
+	1,
+	/** NS - An authoritative name server */
+	2,
+	/** MD - A mail destination (Obsolete - use MX) */
+	3,
+	/** MF - A mail forwarder (Obsolete - use MX) */
+	4,
+	/** CNAME - The canonical name for an alias */
+	5,
+	/** SOA - Marks the start of a zone of authority */
+	6,
+	/** MB - A mailbox domain name (EXPERIMENTAL) */
+	7,
+	/** MG - A mail group member (EXPERIMENTAL) */
+	8,
+	/** MR - A mail rename domain name (EXPERIMENTAL) */
+	9,
+	/** NULL - A null RR (EXPERIMENTAL) */
+	10,
+	/** WKS - A well known service description */
+	11,
+	/** PTR - A domain name pointer */
+	12,
+	/** HINFO - Host information */
+	13,
+	/** MINFO - Mailbox or mail list information */
+	14,
+	/** MX - Mail exchange */
+	15,
+	/** TXT - Text strings */
+	16,
+);
+
+export type DnsType = typeof DnsType.Type;
+
+export const DnsTypeName = Schema.Literal(
+	"A",
+	"NS",
+	"MD",
+	"MF",
+	"CNAME",
+	"SOA",
+	"MB",
+	"MG",
+	"MR",
+	"NULL",
+	"WKS",
+	"PTR",
+	"HINFO",
+	"MINFO",
+	"MX",
+	"TXT",
+);
+
+export type DnsTypeName = typeof DnsTypeName.Type;
+
+export const DnsTypeNameToDnsType = {
 	/** A host address */
 	A: 1,
 	/** An authoritative name server */
@@ -210,9 +397,7 @@ export const DnsType = {
 	MX: 15,
 	/** Text strings */
 	TXT: 16,
-} as const;
-
-export type DnsType = (typeof DnsType)[keyof typeof DnsType];
+};
 
 export interface Message {
 	header: Header;
@@ -569,116 +754,59 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 	{
 		strict: true,
 		decode(uint8Array, _, ast) {
-			if (uint8Array.length < 5) {
-				return ParseResult.fail(
-					new ParseResult.Type(
-						ast,
-						uint8Array,
-						`Question must have a minimum length of 5 bytes, received ${uint8Array.length}`,
-					),
-				);
-			}
-
-			if (uint8Array.length > 260) {
-				return ParseResult.fail(
-					new ParseResult.Type(
-						ast,
-						uint8Array,
-						`Question must have a maximum length of 260 bytes, received ${uint8Array.length}`,
-					),
-				);
-			}
-			const dataView = new DataView(
-				uint8Array.buffer,
-				uint8Array.byteOffset,
-				uint8Array.byteLength,
-			);
-
-			let qname: Mutable<Name> = [];
-			let offset = 0;
-			let qnameSize = 0;
-
-			while (true) {
-				const lengthResult = getUint8(dataView, offset, ast);
-				if (Either.isLeft(lengthResult)) {
-					return ParseResult.fail(lengthResult.left);
-				}
-				const length = lengthResult.right;
-
-				// null terminating byte
-				if (length === 0) {
-					break;
-				}
-
-				if (offset + 1 + length > uint8Array.length) {
-					return ParseResult.fail(
+			return Effect.gen(function* () {
+				if (uint8Array.length < 5) {
+					return yield* ParseResult.fail(
 						new ParseResult.Type(
 							ast,
 							uint8Array,
-							`QNAME label overruns buffer at offset ${offset}`,
+							`Question must have a minimum length of 5 bytes, received ${uint8Array.length}`,
 						),
 					);
 				}
 
-				const label = uint8Array.subarray(offset + 1, offset + 1 + length);
-
-				if (label.length > 63) {
-					return ParseResult.fail(
+				if (uint8Array.length > 260) {
+					return yield* ParseResult.fail(
 						new ParseResult.Type(
 							ast,
 							uint8Array,
-							`QNAME label must be 63 bytes or less, received ${label.length}`,
+							`Question must have a maximum length of 260 bytes, received ${uint8Array.length}`,
 						),
 					);
 				}
 
-				qnameSize += label.buffer.byteLength;
-
-				if (qnameSize > 255) {
-					return ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							uint8Array,
-							`QNAME exceeded maximum size of 255 bytes`,
-						),
-					);
-				}
-				qname.push(label);
-				offset += length + 1;
-			}
-
-			// Increment to the next byte
-			offset += 1;
-
-			if (offset + 4 > uint8Array.length) {
-				return ParseResult.fail(
-					new ParseResult.Type(
-						ast,
-						uint8Array,
-						`Not enough bytes for QTYPE and QCLASS after QNAME`,
-					),
+				const qname: Name = yield* decodeNameFromUint8Array(uint8Array).pipe(
+					Effect.mapError(Struct.get("issue")),
 				);
-			}
 
-			const qtypeResult = getUint16(dataView, offset, ast);
-			if (Either.isLeft(qtypeResult)) {
-				return ParseResult.fail(qtypeResult.left);
-			}
-			const qtype = qtypeResult.right;
+				const dataView = new DataView(
+					uint8Array.buffer,
+					uint8Array.byteOffset,
+					uint8Array.byteLength,
+				);
 
-			const qclassResult = getUint16(dataView, offset + 2, ast);
-			if (Either.isLeft(qclassResult)) {
-				return ParseResult.fail(qclassResult.left);
-			}
-			const qclass = qclassResult.right;
+				const offset = uint8Array.byteLength - 4;
 
-			const question = Question.make({
-				qname,
-				qtype,
-				qclass,
+				const qtypeResult = getUint16(dataView, offset, ast);
+				if (Either.isLeft(qtypeResult)) {
+					return yield* ParseResult.fail(qtypeResult.left);
+				}
+				const qtype = qtypeResult.right;
+
+				const qclassResult = getUint16(dataView, offset + 2, ast);
+				if (Either.isLeft(qclassResult)) {
+					return yield* ParseResult.fail(qclassResult.left);
+				}
+				const qclass = qclassResult.right;
+
+				const question = Question.make({
+					qname,
+					qtype,
+					qclass,
+				});
+
+				return question;
 			});
-
-			return ParseResult.succeed(question);
 		},
 		encode(question, _, ast) {
 			/** 1 zero byte (QNAME terminator) + 4 bytes for QTYPE & QCLASS */
@@ -1138,6 +1266,42 @@ function getUint32(
 			return new ParseResult.Type(
 				ast,
 				dataView,
+				isError(cause) ? cause.message : "Malformed input",
+			);
+		},
+	});
+}
+
+function setUint8(
+	dataView: DataView,
+	offset: number,
+	value: Uint8,
+	ast: SchemaAST.AST,
+): Either.Either<void, ParseResult.ParseIssue> {
+	return ParseResult.try({
+		try: () => dataView.setUint8(offset, value),
+		catch(cause) {
+			return new ParseResult.Type(
+				ast,
+				dataView,
+				isError(cause) ? cause.message : "Malformed input",
+			);
+		},
+	});
+}
+
+function uint8ArraySet(
+	target: Uint8Array,
+	value: Uint8Array,
+	offset: number,
+	ast: SchemaAST.AST,
+): Either.Either<void, ParseResult.ParseIssue> {
+	return ParseResult.try({
+		try: () => target.set(value, offset),
+		catch(cause) {
+			return new ParseResult.Type(
+				ast,
+				target,
 				isError(cause) ? cause.message : "Malformed input",
 			);
 		},
