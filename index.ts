@@ -7,7 +7,7 @@ import {
 	SchemaAST,
 	Struct,
 } from "effect";
-import { decode } from "effect/Duration";
+import { decode, decodeUnknown, seconds } from "effect/Duration";
 import { uint8Array } from "effect/FastCheck";
 import { isError } from "effect/Predicate";
 import type { Mutable } from "effect/Types";
@@ -143,8 +143,27 @@ export const Label = Schema.Uint8ArrayFromSelf.pipe(
 				return "Label can not end with hypen (-)";
 			}
 
-			if (isHypen(previousByte) && isHypen(byte)) {
-				return "Label can not have two consecutive hypens (-)";
+			/*
+			 * RFC 5891: Internationalized Domain Names in Applications (IDNA): Protocol
+			 * 4.2.3.1.  Hyphen Restrictions
+			 * The Unicode string MUST NOT contain "--" (two consecutive hyphens) in
+			 * the third and fourth character positions and MUST NOT start or end
+			 * with a "-" (hyphen).
+			 *
+			 * @see https://www.rfc-editor.org/rfc/rfc5891.html#section-4.2.3.1
+			 */
+			if (isHypen(previousByte) && isHypen(byte) && idx === 3) {
+				const firstByte = uint8Array.at(0) ?? 0;
+				const secondByte = uint8Array.at(1) ?? 0;
+
+				// 120 is the 'x' ascii code. 110 is the 'n' ascii code.
+				const isInternationalDomain = firstByte === 120 && secondByte === 110;
+				if (!isInternationalDomain) {
+					return (
+						"For non-Internationalized domain labels, the third and fourth " +
+						"characters cannot be two consecutive hyphens (-)."
+					);
+				}
 			}
 		}
 
@@ -288,7 +307,7 @@ export const NameFromUint8Array = Schema.transformOrFail(
 			});
 		},
 	},
-);
+).annotations({ identifier: "Name", description: "255 octets or less" });
 
 export const decodeNameFromUint8Array = Schema.decode(NameFromUint8Array);
 export const encodeNameFromUint8Array = Schema.encode(NameFromUint8Array);
@@ -306,7 +325,7 @@ const UdpMessages = Schema.Array(Uint8).pipe(Schema.maxItems(63)).annotations({
  *
  * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.2
  */
-export const DnsType = Schema.Literal(
+export const ResourceRecordType = Schema.Literal(
 	/** A - A host address */
 	1,
 	/** NS - An authoritative name server */
@@ -339,11 +358,15 @@ export const DnsType = Schema.Literal(
 	15,
 	/** TXT - Text strings */
 	16,
-);
+).annotations({
+	identifier: "Type",
+	description:
+		"TYPE fields are used in resource records. Note that these types are a subset of QTYPEs.",
+});
 
-export type DnsType = typeof DnsType.Type;
+export type ResourceRecordType = typeof ResourceRecordType.Type;
 
-export const DnsTypeName = Schema.Literal(
+export const ResourceRecordTypeName = Schema.Literal(
 	"A",
 	"NS",
 	"MD",
@@ -362,9 +385,9 @@ export const DnsTypeName = Schema.Literal(
 	"TXT",
 );
 
-export type DnsTypeName = typeof DnsTypeName.Type;
+export type ResourceRecordTypeName = typeof ResourceRecordTypeName.Type;
 
-export const DnsTypeNameToDnsType = {
+export const RRTypeNameToRRType = {
 	/** A host address */
 	A: 1,
 	/** An authoritative name server */
@@ -397,7 +420,127 @@ export const DnsTypeNameToDnsType = {
 	MX: 15,
 	/** Text strings */
 	TXT: 16,
-};
+} as const;
+
+const QTypeSchema = Schema.Union(
+	ResourceRecordType,
+	Schema.Literal(
+		/** AFXR - A request for a transfer of an entire zone */
+		252,
+		/** MAILB - A request for mailbox-related records (MB, MG or MR) */
+		253,
+		/** MAILA - A request for mail agent RRs (Obsolete - see MX) */
+		254,
+		/** * - A request for all records */
+		255,
+	),
+).annotations({
+	identifier: "QType",
+	description:
+		"QTYPE fields appear in the question part of a query.  QTYPES are a superset " +
+		"of TYPEs, hence all TYPEs are valid QTYPEs.",
+});
+
+const decodeUnknownQType = Schema.decodeUnknown(QTypeSchema);
+
+export const QType = Schema.transformOrFail(Schema.Number, QTypeSchema, {
+	strict: true,
+	decode(number) {
+		return decodeUnknownQType(number).pipe(
+			Effect.mapError(Struct.get("issue")),
+		);
+	},
+	encode(qtype) {
+		return ParseResult.succeed(qtype);
+	},
+}).annotations({
+	identifier: "QType",
+	description:
+		"QTYPE fields appear in the question part of a query.  QTYPES are a superset " +
+		"of TYPEs, hence all TYPEs are valid QTYPEs.",
+});
+
+/**
+ * 3.2.3. QTYPE values
+ *
+ * QTYPE fields appear in the question part of a query. QTYPES are a
+ * superset of TYPEs, hence all TYPEs are valid QTYPEs. In addition, the
+ * following QTYPEs are defined:
+ *
+ * AXFR   252  A request for a transfer of an entire zone
+ * MAILB  253  A request for mailbox-related records (MB, MG or MR)
+ * MAILA  254  A request for mail agent RRs (Obsolete - see MX)
+ * *      255  A request for all records
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.3
+ */
+export type QType = typeof QType.Type;
+
+const decodeQTypeFromNumber = Schema.decodeUnknown(QType);
+const decodeQType = (value: number) => decodeQTypeFromNumber(value);
+
+/**
+ * 3.2.4. CLASS values
+ *
+ * CLASS fields appear in resource records. The following CLASS mnemonics
+ * and values are defined:
+ *
+ * IN  1  the Internet
+ * CS  2  the CSNET class (Obsolete - used only for examples in some obsolete RFCs)
+ * CH  3  the CHAOS class
+ * HS  4  Hesiod [Dyer 87]
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.4
+ */
+export const ResourceRecordClass = Schema.Literal(1, 2, 3, 4).annotations({
+	identifier: "Class",
+	description:
+		"CLASS fields appear in resource records. The following CLASS " +
+		"mnemonics",
+});
+
+export const QClassSchema = Schema.Union(
+	ResourceRecordClass,
+	Schema.Literal(255),
+).annotations({
+	identifier: "QClass",
+	description:
+		"QCLASS fields appear in the question section of a query. QCLASS values " +
+		"are a superset of CLASS values; every CLASS is a valid QCLASS",
+});
+
+const decodeUnknownQClass = Schema.decodeUnknown(QClassSchema);
+
+/**
+ * 3.2.5. QCLASS values
+ *
+ * QCLASS fields appear in the question section of a query. QCLASS values
+ * are a superset of CLASS values; every CLASS is a valid QCLASS. In
+ * addition to CLASS values, the following QCLASSes are defined:
+ *
+ * *  255  any class
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.5
+ */
+export const QClass = Schema.transformOrFail(Schema.Number, QClassSchema, {
+	strict: true,
+	decode(number) {
+		return decodeUnknownQClass(number).pipe(
+			Effect.mapError(Struct.get("issue")),
+		);
+	},
+	encode(qtype) {
+		return ParseResult.succeed(qtype);
+	},
+}).annotations({
+	identifier: "QClass",
+	description:
+		"QCLASS fields appear in the question section of a query. QCLASS values " +
+		"are a superset of CLASS values; every CLASS is a valid QCLASS",
+});
+
+const decodeQClassFromNumber = Schema.decodeUnknown(QClass);
+const decodeQClass = (value: number) => decodeQClassFromNumber(value);
 
 export interface Message {
 	header: Header;
@@ -737,13 +880,18 @@ export const Question = Schema.Struct({
 	 * TYPE field, together with some more general codes which
 	 * can match more than one type of RR.
 	 */
-	qtype: Uint16,
+	qtype: QType,
 
 	/**
 	 * A two octet code that specifies the class of the query.
 	 * For example, the QCLASS field is IN for the Internet.
 	 */
-	qclass: Uint16,
+	qclass: QClass,
+}).annotations({
+	identifier: "Question",
+	description:
+		"The question section is used to carry the 'question' in most " +
+		"queries, i.e., the parameters that define what is being asked.",
 });
 
 export type Question = typeof Question.Type;
@@ -787,17 +935,31 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 
 				const offset = uint8Array.byteLength - 4;
 
-				const qtypeResult = getUint16(dataView, offset, ast);
+				const qtypeResult = Either.map(
+					getUint16(dataView, offset, ast),
+					decodeQType,
+				);
+
 				if (Either.isLeft(qtypeResult)) {
 					return yield* ParseResult.fail(qtypeResult.left);
 				}
-				const qtype = qtypeResult.right;
+				const qtype = yield* Effect.mapError(
+					qtypeResult.right,
+					Struct.get("issue"),
+				);
 
-				const qclassResult = getUint16(dataView, offset + 2, ast);
+				const qclassResult = Either.map(
+					getUint16(dataView, offset + 2, ast),
+					decodeQClass,
+				);
+
 				if (Either.isLeft(qclassResult)) {
 					return yield* ParseResult.fail(qclassResult.left);
 				}
-				const qclass = qclassResult.right;
+				const qclass = yield* Effect.mapError(
+					qclassResult.right,
+					Struct.get("issue"),
+				);
 
 				const question = Question.make({
 					qname,
@@ -885,10 +1047,10 @@ export const encodeSyncQuestion = Schema.encodeSync(QuestionFromUint8Array);
 /**
  * 4.1.3. Resource record format
  *
- * The answer, authority, and additional sections all share the same
- * format: a variable number of resource records, where the number of
- * records is specified in the corresponding count field in the header.
- * Each resource record has the following format:
+ * "The answer, authority, and additional sections all share the same " +
+ * "format: a variable number of resource records, where the number of " +
+ * "records is specified in the corresponding count field in the header. "
+ * Each resource record has the following format: " +
  *
  *                                      1  1  1  1  1  1
  *        0  1  2  3  4  5  6  7  8  9  0  1  2  3  4  5
@@ -1066,6 +1228,17 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 			const rdlength = rdlengthResult.right;
 			offset += 2;
 
+			if (type === RRTypeNameToRRType.A && rdlength !== 4) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						uint8Array,
+						"When a ResourceRecord's TYPE is 1, or an A Record, the RDLENGTH must be " +
+							"4 bytes, representative of an IPv4 address",
+					),
+				);
+			}
+
 			const rdata: Uint8Array = uint8Array.subarray(offset, offset + rdlength);
 
 			if (rdata.byteLength !== rdlength) {
@@ -1099,6 +1272,20 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 						ast,
 						resourceRecord,
 						`NAME length must be 255 bytes or less, received ${resourceRecord.name.length}`,
+					),
+				);
+			}
+
+			if (
+				resourceRecord.type === RRTypeNameToRRType.A &&
+				resourceRecord.rdlength !== 4
+			) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						uint8Array,
+						"When a ResourceRecord's TYPE is 1, or an A Record, the RDLENGTH must be " +
+							"4 bytes, representative of an IPv4 address",
 					),
 				);
 			}
@@ -1158,7 +1345,13 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 			return ParseResult.succeed(new Uint8Array(buffer));
 		},
 	},
-);
+).annotations({
+	identifier: "ResourceRecord",
+	description:
+		"The answer, authority, and additional sections each contain a variable number of resource records. " +
+		"The exact count of these records is indicated by the respective count fields in the DNS message header. " +
+		"Each resource record follows a standardized format to convey information such as domain names, record types, TTL, and associated data.",
+});
 
 export const decodeResourceRecord = Schema.decode(ResourceRecordFromUint8Array);
 export const encodeResourceRecord = Schema.encode(ResourceRecordFromUint8Array);

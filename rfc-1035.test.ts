@@ -9,7 +9,7 @@ import {
 	encodeResourceRecord,
 	decodeNameFromUint8Array,
 	encodeNameFromUint8Array,
-	DnsTypeNameToDnsType,
+	RRTypeNameToRRType,
 	Label,
 	Name,
 } from ".";
@@ -180,7 +180,7 @@ const arbitraryInvalidDnsHeaderUint8Array = arbitraryInvalidDnsHeader.map(
 // Generate valid DNS question
 const arbitraryValidDnsQuestion = fc.record({
 	qname: arbitraryValidDomainName,
-	qtype: fc.constantFrom(...Object.values(DnsTypeNameToDnsType)),
+	qtype: fc.constantFrom(...Object.values(RRTypeNameToRRType)),
 	qclass: fc.constantFrom(1, 3, 4), // IN, CH, HS
 });
 
@@ -223,10 +223,17 @@ const arbitraryRealisticTtl = fc.oneof(
 const arbitraryValidResourceRecord = fc
 	.record({
 		name: arbitraryValidDomainName,
-		type: fc.constantFrom(...Object.values(DnsTypeNameToDnsType)),
+		type: fc.constantFrom(...Object.values(RRTypeNameToRRType)),
 		class: fc.constantFrom(1, 3, 4),
 		ttl: arbitraryRealisticTtl,
 		rdlength: fc.integer({ min: 0, max: 512 }),
+	})
+	.filter((record) => {
+		// A records must have 4 byte rdlength
+		if (record.type === 1 && record.rdlength !== 4) {
+			return false;
+		}
+		return true;
 	})
 	.chain((record) =>
 		fc
@@ -370,13 +377,10 @@ const arbitraryInvalidLabel = fc.oneof(
 		)
 		.map(([pre, bad, post]) => encode(`${pre}${bad}${post}`.slice(0, 63))),
 
-	// Consecutive hyphens
+	// Consecutive hyphens in the 3rd and 4th indices
 	fc
-		.tuple(
-			fc.string({ unit: charFrom(ALPHA_NUM), maxLength: 30 }),
-			fc.string({ unit: charFrom(ALPHA_NUM), maxLength: 30 }),
-		)
-		.map(([left, right]) => encode(`${left}--${right}`)),
+		.tuple(fc.string({ unit: charFrom(ALPHA_NUM), maxLength: 30 }))
+		.map(([value]) => encode(`AA--${value}`)),
 );
 
 // Generate valid Name instances (arrays of valid Labels)
@@ -692,8 +696,8 @@ describe("rfc-1035", () => {
 				);
 				expect(validResult).toEqual(Exit.succeed(true));
 
-				// Cannot have consecutive hyphens
-				const consecutiveHyphens = new Uint8Array([65, 45, 45, 65]); // 'A--A'
+				// Cannot have consecutive hyphens in the 3rd and 4th indicies
+				const consecutiveHyphens = new Uint8Array([65, 65, 45, 45]); // 'AA--'
 				const consecutiveResult = yield* Effect.exit(
 					Effect.sync(() => Schema.is(Label)(consecutiveHyphens)),
 				);
@@ -1302,7 +1306,7 @@ describe("rfc-1035", () => {
 		});
 	});
 
-	describe.only("question", () => {
+	describe("question", () => {
 		it.effect.prop(
 			"successfully decodes valid RFC-compliant questions",
 			[arbitraryValidDnsQuestionUint8Array],
@@ -1359,27 +1363,28 @@ describe("rfc-1035", () => {
 			}),
 		);
 
-		it.effect("fails on consecutive hyphens in labels", () =>
-			Effect.gen(function* () {
-				// RFC 1035: consecutive hyphens are not allowed
-				const invalidLabel = "test--invalid";
-				const labelBytes = new Uint8Array(
-					Array.from(invalidLabel, (c) => c.charCodeAt(0)),
-				);
-				const questionBytes = new Uint8Array(invalidLabel.length + 6);
+		it.effect(
+			"fails on consecutive hyphens in labels when the domain is not an internationalized domain",
+			() =>
+				Effect.gen(function* () {
+					const invalidLabel = "aa--foobar";
+					const labelBytes = new Uint8Array(
+						Array.from(invalidLabel, (c) => c.charCodeAt(0)),
+					);
+					const questionBytes = new Uint8Array(invalidLabel.length + 6);
 
-				questionBytes[0] = labelBytes.length;
-				questionBytes.set(labelBytes, 1);
-				questionBytes[invalidLabel.length + 1] = 0;
-				// Add QTYPE and QCLASS
-				questionBytes[invalidLabel.length + 2] = 0;
-				questionBytes[invalidLabel.length + 3] = 1;
-				questionBytes[invalidLabel.length + 4] = 0;
-				questionBytes[invalidLabel.length + 5] = 1;
+					questionBytes[0] = labelBytes.length;
+					questionBytes.set(labelBytes, 1);
+					questionBytes[invalidLabel.length + 1] = 0;
+					// Add QTYPE and QCLASS
+					questionBytes[invalidLabel.length + 2] = 0;
+					questionBytes[invalidLabel.length + 3] = 1;
+					questionBytes[invalidLabel.length + 4] = 0;
+					questionBytes[invalidLabel.length + 5] = 1;
 
-				const result = yield* Effect.exit(decodeQuestion(questionBytes));
-				expect(Exit.isFailure(result)).toBe(true);
-			}),
+					const result = yield* Effect.exit(decodeQuestion(questionBytes));
+					expect(Exit.isFailure(result)).toBe(true);
+				}),
 		);
 
 		it.effect("validates special/reserved domain names", () =>
@@ -1397,9 +1402,9 @@ describe("rfc-1035", () => {
 							(label) =>
 								new Uint8Array(Array.from(label, (c) => c.charCodeAt(0))),
 						),
-						qtype: DnsTypeNameToDnsType.A,
+						qtype: RRTypeNameToRRType.A,
 						qclass: 1,
-					};
+					} as const;
 
 					const encoded = yield* encodeQuestion(question);
 					const decoded = yield* decodeQuestion(encoded);
@@ -1413,8 +1418,8 @@ describe("rfc-1035", () => {
 				// RFC 1035: QTYPE 0 and QCLASS 0 are invalid
 				const invalidCombinations = [
 					{ qtype: 0, qclass: 1 }, // Invalid QTYPE 0
-					{ qtype: DnsTypeNameToDnsType.A, qclass: 0 }, // Invalid QCLASS 0
-				];
+					{ qtype: RRTypeNameToRRType.A, qclass: 0 }, // Invalid QCLASS 0
+				] as const;
 
 				for (const combo of invalidCombinations) {
 					const question = {
@@ -1423,41 +1428,41 @@ describe("rfc-1035", () => {
 						qclass: combo.qclass,
 					};
 
+					// @ts-expect-error -- testing invalid case
 					const result = yield* Effect.exit(encodeQuestion(question));
 					expect(Exit.isFailure(result)).toBe(true);
 				}
 			}),
 		);
-		//
-		// it.effect.prop(
-		// 	"roundtrip encoding preserves valid questions",
-		// 	[arbitraryValidDnsQuestionUint8Array],
-		// 	([uint8Array]) =>
-		// 		Effect.gen(function* () {
-		// 			const decoded = yield* decodeQuestion(uint8Array);
-		// 			const encoded = yield* encodeQuestion(decoded);
-		// 			expect(Array.from(encoded)).toEqual(Array.from(uint8Array));
-		// 		}),
-		// );
-		//
-		// it.effect("handles internationalized domain names", () =>
-		// 	Effect.gen(function* () {
-		// 		// IDN should be punycode encoded, not raw UTF-8
-		// 		const unicodeDomain = "xn--fsq.com"; // punycode for "中.com"
-		// 		const question = {
-		// 			qname: [
-		// 				new Uint8Array(Array.from("xn--fsq", (c) => c.charCodeAt(0))),
-		// 				new Uint8Array(Array.from("com", (c) => c.charCodeAt(0))),
-		// 			],
-		// 			qtype: DnsType.A,
-		// 			qclass: 1,
-		// 		};
-		//
-		// 		const encoded = yield* encodeQuestion(question);
-		// 		const decoded = yield* decodeQuestion(encoded);
-		// 		expect(decoded.qname.length).toBe(2);
-		// 	}),
-		// );
+
+		it.effect.prop(
+			"roundtrip encoding preserves valid questions",
+			[arbitraryValidDnsQuestionUint8Array],
+			([uint8Array]) =>
+				Effect.gen(function* () {
+					const decoded = yield* decodeQuestion(uint8Array);
+					const encoded = yield* encodeQuestion(decoded);
+					expect(Array.from(encoded)).toEqual(Array.from(uint8Array));
+				}),
+		);
+
+		it.effect("handles internationalized domain names", () =>
+			Effect.gen(function* () {
+				// punycode for "中.com"
+				const question = {
+					qname: [
+						new Uint8Array(Array.from("xn--fsq", (c) => c.charCodeAt(0))),
+						new Uint8Array(Array.from("com", (c) => c.charCodeAt(0))),
+					],
+					qtype: RRTypeNameToRRType.A,
+					qclass: 1,
+				} as const;
+
+				const encoded = yield* encodeQuestion(question);
+				const decoded = yield* decodeQuestion(encoded);
+				expect(decoded.qname.length).toBe(2);
+			}),
+		);
 	});
 
 	describe("resource record", () => {
@@ -1484,7 +1489,7 @@ describe("rfc-1035", () => {
 				// TTL=0 has special meaning (no caching)
 				const record = {
 					name: [new Uint8Array([116, 101, 115, 116])], // "test"
-					type: DnsTypeNameToDnsType.A,
+					type: RRTypeNameToRRType.A,
 					class: 1,
 					ttl: 0,
 					rdlength: 4,
@@ -1502,7 +1507,7 @@ describe("rfc-1035", () => {
 				// A records must have exactly 4 bytes of RDATA per RFC 1035
 				const validARecord = {
 					name: [new Uint8Array([116, 101, 115, 116])],
-					type: DnsTypeNameToDnsType.A,
+					type: RRTypeNameToRRType.A,
 					class: 1,
 					ttl: 3600,
 					rdlength: 4,
@@ -1531,7 +1536,7 @@ describe("rfc-1035", () => {
 				// MX records must have preference + domain name
 				const validMXRecord = {
 					name: [new Uint8Array([116, 101, 115, 116])],
-					type: DnsTypeNameToDnsType.MX,
+					type: RRTypeNameToRRType.MX,
 					class: 1,
 					ttl: 3600,
 					rdlength: 8, // 2 bytes preference + 6 bytes for "mail" + terminator
@@ -1653,7 +1658,7 @@ describe("rfc-1035", () => {
 				// A records must have exactly 4 bytes of RDATA per RFC 1035
 				const invalidARecord = {
 					name: [new Uint8Array([116, 101, 115, 116])],
-					type: DnsTypeNameToDnsType.A,
+					type: RRTypeNameToRRType.A,
 					class: 1,
 					ttl: 3600,
 					rdlength: 5, // Invalid for A record
@@ -1666,7 +1671,7 @@ describe("rfc-1035", () => {
 				// NULL records can have any RDLENGTH per RFC 1035
 				const validNullRecord = {
 					name: [new Uint8Array([116, 101, 115, 116])],
-					type: DnsTypeNameToDnsType.NULL,
+					type: RRTypeNameToRRType.NULL,
 					class: 1,
 					ttl: 3600,
 					rdlength: 10,
@@ -1688,9 +1693,9 @@ describe("rfc-1035", () => {
 				const maxLabel = new Uint8Array(63).fill(65); // 63 'A's
 				const question = {
 					qname: [maxLabel],
-					qtype: DnsTypeNameToDnsType.A,
+					qtype: RRTypeNameToRRType.A,
 					qclass: 1,
-				};
+				} as const;
 
 				const encoded = yield* encodeQuestion(question);
 				const decoded = yield* decodeQuestion(encoded);
@@ -1707,9 +1712,9 @@ describe("rfc-1035", () => {
 				const maxLabel = new Uint8Array(63).fill(65); // 63 'A's
 				const question = {
 					qname: [maxLabel, maxLabel, maxLabel],
-					qtype: DnsTypeNameToDnsType.A,
+					qtype: RRTypeNameToRRType.A,
 					qclass: 1,
-				};
+				} as const;
 
 				const encoded = yield* encodeQuestion(question);
 				const decoded = yield* decodeQuestion(encoded);
@@ -1757,9 +1762,9 @@ describe("rfc-1035", () => {
 
 				const question = {
 					qname: validName,
-					qtype: DnsTypeNameToDnsType.A,
+					qtype: RRTypeNameToRRType.A,
 					qclass: 1,
-				};
+				} as const;
 
 				const encoded = yield* encodeQuestion(question);
 				const decoded = yield* decodeQuestion(encoded);
@@ -1774,9 +1779,9 @@ describe("rfc-1035", () => {
 
 				const invalidQuestion = {
 					qname: invalidName,
-					qtype: DnsTypeNameToDnsType.A,
+					qtype: RRTypeNameToRRType.A,
 					qclass: 1,
-				};
+				} as const;
 
 				const result = yield* Effect.exit(encodeQuestion(invalidQuestion));
 				expect(Exit.isFailure(result)).toBe(true);
@@ -1794,7 +1799,7 @@ describe("rfc-1035", () => {
 
 				const record = {
 					name: validName,
-					type: DnsTypeNameToDnsType.A,
+					type: RRTypeNameToRRType.A,
 					class: 1,
 					ttl: 3600,
 					rdlength: 4,
@@ -1814,7 +1819,7 @@ describe("rfc-1035", () => {
 
 				const invalidRecord = {
 					name: invalidName,
-					type: DnsTypeNameToDnsType.A,
+					type: RRTypeNameToRRType.A,
 					class: 1,
 					ttl: 3600,
 					rdlength: 4,
@@ -1834,34 +1839,34 @@ describe("rfc-1035", () => {
 					// Test Name in Question context
 					const question = {
 						qname: name,
-						qtype: DnsTypeNameToDnsType.A,
+						qtype: RRTypeNameToRRType.A,
 						qclass: 1,
-					};
+					} as const;
 
 					const questionEncoded = yield* encodeQuestion(question);
 					const questionDecoded = yield* decodeQuestion(questionEncoded);
 					expect(questionDecoded.qname.length).toEqual(name.length);
-					//
-					// // Test same Name in ResourceRecord context
-					// const record = {
-					// 	name: name,
-					// 	type: DnsType.A,
-					// 	class: 1,
-					// 	ttl: 3600,
-					// 	rdlength: 4,
-					// 	rdata: new Uint8Array([192, 0, 2, 1]),
-					// };
-					//
-					// const recordEncoded = yield* encodeResourceRecord(record);
-					// const recordDecoded = yield* decodeResourceRecord(recordEncoded);
-					// expect(recordDecoded.name.length).toBe(name.length);
-					//
-					// // Both contexts should preserve the same Name structure
-					// for (let i = 0; i < name.length; i++) {
-					// 	expect(Array.from(questionDecoded.qname[i] || [])).toEqual(
-					// 		Array.from(recordDecoded.name[i] || []),
-					// 	);
-					// }
+
+					// Test same Name in ResourceRecord context
+					const record = {
+						name: name,
+						type: RRTypeNameToRRType.A,
+						class: 1,
+						ttl: 3600,
+						rdlength: 4,
+						rdata: new Uint8Array([192, 0, 2, 1]),
+					} as const;
+
+					const recordEncoded = yield* encodeResourceRecord(record);
+					const recordDecoded = yield* decodeResourceRecord(recordEncoded);
+					expect(recordDecoded.name.length).toBe(name.length);
+
+					// Both contexts should preserve the same Name structure
+					for (let i = 0; i < name.length; i++) {
+						expect(Array.from(questionDecoded.qname[i] || [])).toEqual(
+							Array.from(recordDecoded.name[i] || []),
+						);
+					}
 				}),
 		);
 	});
