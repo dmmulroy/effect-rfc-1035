@@ -102,7 +102,7 @@ describe("question", () => {
 								new Uint8Array(Array.from(label, (c) => c.charCodeAt(0))),
 						),
 
-						encodedByteLength: 0,
+						encodedByteLength: domain.reduce((sum, label) => sum + label.length + 1, 0) + 1,
 					},
 					qtype: RRTypeNameToRRType.A,
 					qclass: 1,
@@ -125,7 +125,7 @@ describe("question", () => {
 
 			for (const combo of invalidCombinations) {
 				const question = {
-					qname: { labels: [new Uint8Array([116, 101, 115, 116])], encodedByteLength: 0 }, // "test"
+					qname: { labels: [new Uint8Array([116, 101, 115, 116])], encodedByteLength: 6 }, // "test" - 4 bytes + 1 length prefix + 1 terminator
 					qtype: combo.qtype,
 					qclass: combo.qclass,
 				};
@@ -157,7 +157,7 @@ describe("question", () => {
 						new Uint8Array(Array.from("xn--fsq", (c) => c.charCodeAt(0))),
 						new Uint8Array(Array.from("com", (c) => c.charCodeAt(0))),
 					],
-					encodedByteLength: 0,
+					encodedByteLength: 13, // "xn--fsq" (7) + "com" (3) + 2 length prefixes + 1 terminator = 7+1+3+1+1 = 13
 				},
 				qtype: RRTypeNameToRRType.A,
 				qclass: 1,
@@ -175,7 +175,7 @@ describe("question", () => {
 				// Create a label with exactly 63 bytes
 				const maxLabel = new Uint8Array(63).fill(65); // 63 'A's
 				const question = {
-					qname: { labels: [maxLabel], encodedByteLength: 0 },
+					qname: { labels: [maxLabel], encodedByteLength: 65 }, // 63 bytes + 1 length prefix + 1 terminator
 					qtype: RRTypeNameToRRType.A,
 					qclass: 1,
 				} as const;
@@ -195,7 +195,7 @@ describe("question", () => {
 						new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
 						new Uint8Array([99, 111, 109]), // "com"
 					],
-					encodedByteLength: 0,
+					encodedByteLength: 17, // "www" (3) + "example" (7) + "com" (3) + 3 length prefixes + 1 terminator = 3+1+7+1+3+1+1 = 17
 				};
 
 				const question = {
@@ -215,7 +215,7 @@ describe("question", () => {
 						new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
 						new Uint8Array([99, 111, 109]), // "com"
 					],
-					encodedByteLength: 0,
+					encodedByteLength: 18, // "-www" (4) + "example" (7) + "com" (3) + 3 length prefixes + 1 terminator = 4+1+7+1+3+1+1 = 18
 				};
 
 				const invalidQuestion = {

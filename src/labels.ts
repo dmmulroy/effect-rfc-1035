@@ -126,19 +126,20 @@ export type Name = typeof Name.Type;
 export const Name = Schema.Struct({
 	labels: Schema.Array(Label).pipe(
 		Schema.filter((labels) => {
-			let bytes = 0;
+			let bytes = labels.length;
 
 			for (let idx = 0; idx < labels.length; idx++) {
 				bytes += labels[idx]?.byteLength ?? 0;
 			}
 
-			if (bytes === 0 || bytes > 255) {
+			// ++bytes for null terminator byte
+			if (bytes === 0 || ++bytes > 255) {
 				return `Name must be between 1 and 255 bytes, recieved '${bytes}'`;
 			}
 			return undefined;
 		}),
 	),
-	encodedByteLength: Schema.Number,
+	encodedByteLength: Schema.Number.pipe(Schema.between(1, 255)),
 }).annotations({ identifier: "Name", description: "255 octets or less" });
 
 export const NameFromUint8Array = Schema.transformOrFail(

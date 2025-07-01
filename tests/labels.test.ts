@@ -237,7 +237,9 @@ describe("Name", () => {
 		[arbitraryValidName],
 		([labels]) =>
 			Effect.gen(function* () {
-				const nameStruct = { labels, encodedByteLength: 0 };
+				const encodedByteLength =
+					labels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
+				const nameStruct = { labels, encodedByteLength };
 				const result = yield* Effect.exit(
 					Effect.sync(() => Schema.is(Name)(nameStruct)),
 				);
@@ -247,7 +249,9 @@ describe("Name", () => {
 
 	it.effect.prop("rejects invalid names", [arbitraryInvalidName], ([labels]) =>
 		Effect.gen(function* () {
-			const nameStruct = { labels, encodedByteLength: 0 };
+			const encodedByteLength =
+				labels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
+			const nameStruct = { labels, encodedByteLength };
 			const result = yield* Effect.exit(
 				Effect.sync(() => Schema.is(Name)(nameStruct)),
 			);
@@ -264,9 +268,12 @@ describe("Name", () => {
 			// So use 3 labels of 63 bytes = 3 * 63 = 189 bytes
 			// Plus 3 length bytes + 1 terminator = 193 bytes (within limit)
 			const maxLabel = new Uint8Array(63).fill(65); // 63 'A's
+			const validLabels = [maxLabel, maxLabel, maxLabel];
+			const encodedByteLength =
+				validLabels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
 			const validNameStruct = {
-				labels: [maxLabel, maxLabel, maxLabel],
-				encodedByteLength: 0,
+				labels: validLabels,
+				encodedByteLength,
 			}; // 193 total bytes
 
 			const validResult = yield* Effect.exit(
@@ -275,9 +282,18 @@ describe("Name", () => {
 			expect(validResult).toEqual(Exit.succeed(true));
 
 			// Create a name exceeding 255 octets
+			const oversizedLabels = [
+				maxLabel,
+				maxLabel,
+				maxLabel,
+				maxLabel,
+				maxLabel,
+			];
+			const oversizedEncodedByteLength =
+				oversizedLabels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
 			const oversizedNameStruct = {
-				labels: [maxLabel, maxLabel, maxLabel, maxLabel, maxLabel],
-				encodedByteLength: 0,
+				labels: oversizedLabels,
+				encodedByteLength: oversizedEncodedByteLength,
 			};
 			const invalidResult = yield* Effect.exit(
 				Effect.sync(() => Schema.is(Name)(oversizedNameStruct)),
@@ -289,9 +305,12 @@ describe("Name", () => {
 	it.effect("validates empty name arrays", () =>
 		Effect.gen(function* () {
 			// Empty array should fail (RFC requires at least one label)
+			const emptyLabels: Uint8Array[] = [];
+			const emptyEncodedByteLength =
+				emptyLabels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
 			const emptyNameStruct = {
-				labels: [] as Uint8Array[],
-				encodedByteLength: 0,
+				labels: emptyLabels,
+				encodedByteLength: emptyEncodedByteLength,
 			};
 			const result = yield* Effect.exit(
 				Effect.sync(() => Schema.is(Name)(emptyNameStruct)),
@@ -305,7 +324,9 @@ describe("Name", () => {
 		[arbitraryValidName],
 		([labels]) =>
 			Effect.gen(function* () {
-				const nameStruct = { labels, encodedByteLength: 0 };
+				const encodedByteLength =
+					labels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
+				const nameStruct = { labels, encodedByteLength };
 
 				// Test that valid names pass validation consistently
 				const result1 = yield* Effect.exit(
@@ -374,7 +395,9 @@ describe("Name", () => {
 			[arbitraryValidName],
 			([labels]) =>
 				Effect.gen(function* () {
-					const nameStruct = { labels, encodedByteLength: 0 };
+					const encodedByteLength =
+						labels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
+					const nameStruct = { labels, encodedByteLength };
 					const result = yield* Effect.exit(
 						encodeNameFromUint8Array(nameStruct),
 					);
@@ -401,7 +424,9 @@ describe("Name", () => {
 			[arbitraryInvalidName],
 			([labels]) =>
 				Effect.gen(function* () {
-					const nameStruct = { labels, encodedByteLength: 0 };
+					const encodedByteLength =
+						labels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
+					const nameStruct = { labels, encodedByteLength };
 					const result = yield* Effect.exit(
 						encodeNameFromUint8Array(nameStruct),
 					);
@@ -485,7 +510,7 @@ describe("Name", () => {
 					{
 						nameStruct: {
 							labels: [new Uint8Array([65])],
-							encodedByteLength: 0,
+							encodedByteLength: 3,
 						}, // ["A"]
 						expected: new Uint8Array([1, 65, 0]),
 					},
@@ -495,7 +520,7 @@ describe("Name", () => {
 								new Uint8Array([116, 101, 115, 116]), // "test"
 								new Uint8Array([99, 111, 109]), // "com"
 							],
-							encodedByteLength: 0,
+							encodedByteLength: 10,
 						},
 						expected: new Uint8Array([
 							4, 116, 101, 115, 116, 3, 99, 111, 109, 0,
@@ -507,7 +532,7 @@ describe("Name", () => {
 								new Uint8Array([65, 45, 66]), // "A-B"
 								new Uint8Array([49, 50, 51]), // "123"
 							],
-							encodedByteLength: 0,
+							encodedByteLength: 9,
 						},
 						expected: new Uint8Array([3, 65, 45, 66, 3, 49, 50, 51, 0]),
 					},
@@ -531,7 +556,10 @@ describe("Name", () => {
 			Effect.gen(function* () {
 				// Maximum valid label (63 bytes)
 				const maxLabel = new Uint8Array(63).fill(65); // 63 'A's
-				const maxLabelNameStruct = { labels: [maxLabel], encodedByteLength: 0 };
+				const maxLabelNameStruct = {
+					labels: [maxLabel],
+					encodedByteLength: 65,
+				};
 				const encoded1 = yield* encodeNameFromUint8Array(maxLabelNameStruct);
 				const decoded1 = yield* decodeNameFromUint8Array(encoded1);
 				expect(decoded1.labels[0]?.length).toBe(63);
@@ -544,7 +572,7 @@ describe("Name", () => {
 						new Uint8Array(60).fill(67), // 60 'C's
 						new Uint8Array(60).fill(68), // 60 'D's
 					],
-					encodedByteLength: 0,
+					encodedByteLength: 245,
 				};
 
 				// This should be within limits: 4 * (60 + 1) + 1 = 245 bytes
@@ -560,12 +588,16 @@ describe("Name", () => {
 			Effect.gen(function* () {
 				// Exactly 63 bytes should pass
 				const maxValidLabel = new Uint8Array(63).fill(65); // 63 'A's
-				const validResult = yield* Effect.exit(Schema.decodeUnknown(Label)(maxValidLabel));
+				const validResult = yield* Effect.exit(
+					Schema.decodeUnknown(Label)(maxValidLabel),
+				);
 				expect(Exit.isSuccess(validResult)).toBe(true);
 
 				// 64 bytes should fail
 				const oversizedLabel = new Uint8Array(64).fill(65); // 64 'A's
-				const invalidResult = yield* Effect.exit(Schema.decodeUnknown(Label)(oversizedLabel));
+				const invalidResult = yield* Effect.exit(
+					Schema.decodeUnknown(Label)(oversizedLabel),
+				);
 				expect(Exit.isFailure(invalidResult)).toBe(true);
 			}),
 		);
@@ -575,19 +607,26 @@ describe("Name", () => {
 				// Create names approaching the 255 byte wire format limit
 				// RFC 1035: Names are limited to 255 octets in wire format
 				const label63 = new Uint8Array(63).fill(65); // 63 'A's each
-				
+
 				// 3 labels = 3*63 + 3 length bytes + 1 terminator = 193 bytes (valid)
-				const validNameStruct = { labels: [label63, label63, label63], encodedByteLength: 0 };
+				const validNameStruct = {
+					labels: [label63, label63, label63],
+					encodedByteLength: 193,
+				};
 				const validResult = yield* Effect.exit(
 					Effect.sync(() => Schema.is(Name)(validNameStruct)),
 				);
 				expect(validResult).toEqual(Exit.succeed(true));
 
 				// 4 labels = 4*63 + 4 length bytes + 1 terminator = 257 bytes (invalid, exceeds 255)
-				const invalidNameStruct = { labels: [label63, label63, label63, label63], encodedByteLength: 0 };
+				const invalidNameStruct = {
+					labels: [label63, label63, label63, label63],
+					encodedByteLength: 257,
+				};
 				const invalidResult = yield* Effect.exit(
 					Effect.sync(() => Schema.is(Name)(invalidNameStruct)),
 				);
+
 				expect(invalidResult).toEqual(Exit.succeed(false));
 			}),
 		);
@@ -596,17 +635,23 @@ describe("Name", () => {
 			Effect.gen(function* () {
 				// Label starting with hyphen should fail
 				const startsWithHyphen = new Uint8Array([45, 65, 66]); // "-AB"
-				const result1 = yield* Effect.exit(Schema.decodeUnknown(Label)(startsWithHyphen));
+				const result1 = yield* Effect.exit(
+					Schema.decodeUnknown(Label)(startsWithHyphen),
+				);
 				expect(Exit.isFailure(result1)).toBe(true);
 
 				// Label ending with hyphen should fail
 				const endsWithHyphen = new Uint8Array([65, 66, 45]); // "AB-"
-				const result2 = yield* Effect.exit(Schema.decodeUnknown(Label)(endsWithHyphen));
+				const result2 = yield* Effect.exit(
+					Schema.decodeUnknown(Label)(endsWithHyphen),
+				);
 				expect(Exit.isFailure(result2)).toBe(true);
 
 				// Label with consecutive hyphens in 3rd-4th position should fail (non-IDN)
 				const consecutiveHyphens = new Uint8Array([65, 65, 45, 45, 66]); // "AA--B"
-				const result3 = yield* Effect.exit(Schema.decodeUnknown(Label)(consecutiveHyphens));
+				const result3 = yield* Effect.exit(
+					Schema.decodeUnknown(Label)(consecutiveHyphens),
+				);
 				expect(Exit.isFailure(result3)).toBe(true);
 			}),
 		);
@@ -614,7 +659,10 @@ describe("Name", () => {
 		it.effect("validates empty name edge case", () =>
 			Effect.gen(function* () {
 				// Empty labels array should fail
-				const emptyNameStruct = { labels: [] as Uint8Array[], encodedByteLength: 0 };
+				const emptyNameStruct = {
+					labels: [] as Uint8Array[],
+					encodedByteLength: 1,
+				};
 				const result = yield* Effect.exit(
 					Effect.sync(() => Schema.is(Name)(emptyNameStruct)),
 				);
@@ -774,7 +822,7 @@ describe("Name struct with encodedByteLength", () => {
 						new Uint8Array([116, 101, 115, 116]), // "test"
 						new Uint8Array([99, 111, 109]), // "com"
 					],
-					encodedByteLength: 0, // Will be calculated during encoding
+					encodedByteLength: 10, // Will be calculated during encoding
 				};
 
 				// Encode to wire format

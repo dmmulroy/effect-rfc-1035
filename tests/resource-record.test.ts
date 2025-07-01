@@ -32,7 +32,7 @@ describe("resource record", () => {
 			const record = {
 				name: {
 					labels: [new Uint8Array([116, 101, 115, 116])],
-					encodedByteLength: 7,
+					encodedByteLength: 6,
 				}, // "test"
 				type: RRTypeNameToRRType.A,
 				class: 1,
@@ -53,7 +53,7 @@ describe("resource record", () => {
 			const validARecord = {
 				name: {
 					labels: [new Uint8Array([116, 101, 115, 116])],
-					encodedByteLength: 5,
+					encodedByteLength: 6,
 				},
 				type: RRTypeNameToRRType.A,
 				class: 1,
@@ -85,7 +85,7 @@ describe("resource record", () => {
 			const validMXRecord = {
 				name: {
 					labels: [new Uint8Array([116, 101, 115, 116])],
-					encodedByteLength: 5,
+					encodedByteLength: 6,
 				},
 				type: RRTypeNameToRRType.MX,
 				class: 1,
@@ -210,7 +210,7 @@ describe("resource record", () => {
 			const invalidARecord = {
 				name: {
 					labels: [new Uint8Array([116, 101, 115, 116])],
-					encodedByteLength: 5,
+					encodedByteLength: 6,
 				},
 				type: RRTypeNameToRRType.A,
 				class: 1,
@@ -226,7 +226,7 @@ describe("resource record", () => {
 			const validNullRecord = {
 				name: {
 					labels: [new Uint8Array([116, 101, 115, 116])],
-					encodedByteLength: 5,
+					encodedByteLength: 6,
 				},
 				type: RRTypeNameToRRType.NULL,
 				class: 1,
@@ -252,7 +252,7 @@ describe("resource record", () => {
 						new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
 						new Uint8Array([99, 111, 109]), // "com"
 					],
-					encodedByteLength: 0,
+					encodedByteLength: 18,
 				};
 
 				const record = {
@@ -275,7 +275,7 @@ describe("resource record", () => {
 						new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
 						new Uint8Array([99, 111, 109]), // "com"
 					],
-					encodedByteLength: 0,
+					encodedByteLength: 19,
 				};
 
 				const invalidRecord = {

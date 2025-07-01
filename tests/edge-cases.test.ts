@@ -16,7 +16,8 @@ describe("boundary conditions and edge cases", () => {
 		[arbitraryValidName],
 		([labels]) =>
 			Effect.gen(function* () {
-				const nameStruct = { labels, encodedByteLength: 0 };
+				const encodedByteLength = labels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
+				const nameStruct = { labels, encodedByteLength };
 				
 				// Test Name in Question context
 				const question = {
