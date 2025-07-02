@@ -195,7 +195,7 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 					uint8Array.byteLength,
 				);
 
-				const offset = uint8Array.byteLength - 4;
+				const offset = qname.encodedByteLength;
 
 				const qtypeResult = Either.map(
 					getUint16(dataView, offset, ast),

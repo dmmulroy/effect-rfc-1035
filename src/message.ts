@@ -55,6 +55,7 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 						offset + MAX_QUESTION_BYTE_LENGTH,
 					);
 					const question = yield* decodeQuestion(questionUint8Array);
+					questions.push(question);
 
 					// 4 bytes for qtype, qclass
 					offset += question.qname.encodedByteLength + 4;
