@@ -500,3 +500,222 @@ export const arbitraryInvalidNameWireFormat = fc.oneof(
 	// Wire format that would exceed 255 total bytes
 	fc.constant(new Uint8Array(300).fill(1)), // Invalid structure, too large
 );
+
+// Generate valid DNS message (header + question only, since answer/authority/additional are not implemented)
+export const arbitraryValidDnsMessage = fc.record({
+	header: arbitraryValidQuestionDnsHeader.map((h) => ({
+		...h,
+		qdcount: 1,
+		ancount: 0,
+		nscount: 0,
+		arcount: 0,
+	})),
+	question: arbitraryValidDnsQuestion,
+});
+
+// Generate valid DNS message as Uint8Array
+export const arbitraryValidDnsMessageUint8Array = arbitraryValidDnsMessage.map(
+	(message) => {
+		// Generate header bytes
+		const headerBuffer = new ArrayBuffer(12);
+		const headerView = new DataView(headerBuffer);
+
+		headerView.setUint16(0, message.header.id, false);
+
+		let byte2 = 0;
+		byte2 |= (message.header.qr & 0x01) << 7;
+		byte2 |= (message.header.opcode & 0x0f) << 3;
+		byte2 |= (message.header.aa & 0x01) << 2;
+		byte2 |= (message.header.tc & 0x01) << 1;
+		byte2 |= message.header.rd & 0x01;
+		headerView.setUint8(2, byte2);
+
+		let byte3 = 0;
+		byte3 |= (message.header.ra & 0x01) << 7;
+		byte3 |= (message.header.z & 0x07) << 4;
+		byte3 |= message.header.rcode & 0x0f;
+		headerView.setUint8(3, byte3);
+
+		headerView.setUint16(4, message.header.qdcount, false);
+		headerView.setUint16(6, message.header.ancount, false);
+		headerView.setUint16(8, message.header.nscount, false);
+		headerView.setUint16(10, message.header.arcount, false);
+
+		// Generate question bytes
+		const questionLength =
+			message.question.qname.reduce((sum, label) => sum + label.length + 1, 0) +
+			5;
+		const questionBuffer = new Uint8Array(questionLength);
+		const questionView = new DataView(questionBuffer.buffer);
+
+		let offset = 0;
+
+		// Write labels
+		for (const label of message.question.qname) {
+			questionBuffer[offset++] = label.length;
+			questionBuffer.set(label, offset);
+			offset += label.length;
+		}
+
+		// Write terminator
+		questionBuffer[offset++] = 0;
+
+		// Write qtype and qclass
+		questionView.setUint16(offset, message.question.qtype, false);
+		offset += 2;
+		questionView.setUint16(offset, message.question.qclass, false);
+
+		// Combine header and question
+		const messageBuffer = new Uint8Array(12 + questionLength);
+		messageBuffer.set(new Uint8Array(headerBuffer), 0);
+		messageBuffer.set(questionBuffer, 12);
+
+		return {
+			messageBuffer,
+			header: message.header,
+			question: message.question,
+		};
+	},
+);
+
+// Generate specific test case messages for common scenarios
+export const arbitraryCommonDnsMessage = fc
+	.oneof(
+		// A record query for example.com
+		fc.constant({
+			header: {
+				id: 12345,
+				qr: 0,
+				opcode: 0,
+				aa: 0,
+				tc: 0,
+				rd: 1,
+				ra: 0,
+				z: 0,
+				rcode: 0,
+				qdcount: 1,
+				ancount: 0,
+				nscount: 0,
+				arcount: 0,
+			},
+			question: {
+				qname: [
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				qtype: RRTypeNameToRRType.A,
+				qclass: 1,
+			},
+		}),
+		// AAAA record query for localhost
+		fc.constant({
+			header: {
+				id: 54321,
+				qr: 0,
+				opcode: 0,
+				aa: 0,
+				tc: 0,
+				rd: 0,
+				ra: 0,
+				z: 0,
+				rcode: 0,
+				qdcount: 1,
+				ancount: 0,
+				nscount: 0,
+				arcount: 0,
+			},
+			question: {
+				qname: [new Uint8Array([108, 111, 99, 97, 108, 104, 111, 115, 116])], // "localhost"
+				qtype: RRTypeNameToRRType.A,
+				qclass: 1,
+			},
+		}),
+		// MX record query for mail.example.org
+		fc.constant({
+			header: {
+				id: 65535,
+				qr: 0,
+				opcode: 0,
+				aa: 0,
+				tc: 0,
+				rd: 1,
+				ra: 0,
+				z: 0,
+				rcode: 0,
+				qdcount: 1,
+				ancount: 0,
+				nscount: 0,
+				arcount: 0,
+			},
+			question: {
+				qname: [
+					new Uint8Array([109, 97, 105, 108]), // "mail"
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([111, 114, 103]), // "org"
+				],
+				qtype: RRTypeNameToRRType.MX,
+				qclass: 1,
+			},
+		}),
+	)
+	.map((message) => {
+		// Convert to Uint8Array format
+		const headerBuffer = new ArrayBuffer(12);
+		const headerView = new DataView(headerBuffer);
+
+		headerView.setUint16(0, message.header.id, false);
+
+		let byte2 = 0;
+		byte2 |= (message.header.qr & 0x01) << 7;
+		byte2 |= (message.header.opcode & 0x0f) << 3;
+		byte2 |= (message.header.aa & 0x01) << 2;
+		byte2 |= (message.header.tc & 0x01) << 1;
+		byte2 |= message.header.rd & 0x01;
+		headerView.setUint8(2, byte2);
+
+		let byte3 = 0;
+		byte3 |= (message.header.ra & 0x01) << 7;
+		byte3 |= (message.header.z & 0x07) << 4;
+		byte3 |= message.header.rcode & 0x0f;
+		headerView.setUint8(3, byte3);
+
+		headerView.setUint16(4, message.header.qdcount, false);
+		headerView.setUint16(6, message.header.ancount, false);
+		headerView.setUint16(8, message.header.nscount, false);
+		headerView.setUint16(10, message.header.arcount, false);
+
+		// Generate question bytes
+		const questionLength =
+			message.question.qname.reduce((sum, label) => sum + label.length + 1, 0) +
+			5;
+		const questionBuffer = new Uint8Array(questionLength);
+		const questionView = new DataView(questionBuffer.buffer);
+
+		let offset = 0;
+
+		// Write labels
+		for (const label of message.question.qname) {
+			questionBuffer[offset++] = label.length;
+			questionBuffer.set(label, offset);
+			offset += label.length;
+		}
+
+		// Write terminator
+		questionBuffer[offset++] = 0;
+
+		// Write qtype and qclass
+		questionView.setUint16(offset, message.question.qtype, false);
+		offset += 2;
+		questionView.setUint16(offset, message.question.qclass, false);
+
+		// Combine header and question
+		const messageBuffer = new Uint8Array(12 + questionLength);
+		messageBuffer.set(new Uint8Array(headerBuffer), 0);
+		messageBuffer.set(questionBuffer, 12);
+
+		return {
+			messageBuffer,
+			header: message.header,
+			question: message.question,
+		};
+	});

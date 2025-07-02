@@ -182,7 +182,7 @@ export const ResourceRecordClass = Schema.Literal(1, 2, 3, 4).annotations({
  *                 For example, if the TYPE is A and the CLASS is IN,
  *                 the RDATA field is a 4 octet ARPA Internet address.
  */
-const ResourceRecord = Schema.Struct({
+export const ResourceRecord = Schema.Struct({
 	name: Name,
 	type: Uint16,
 	class: Uint16,

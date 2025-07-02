@@ -137,12 +137,12 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 	{
 		strict: true,
 		decode(uint8Array, _, ast) {
-			if (uint8Array.length !== 12) {
+			if (uint8Array.byteLength !== 12) {
 				return ParseResult.fail(
 					new ParseResult.Type(
 						ast,
 						uint8Array,
-						`Header must be 12 bytes, received ${uint8Array.length}`,
+						`Header must be 12 bytes, received ${uint8Array.byteLength}`,
 					),
 				);
 			}
@@ -285,4 +285,3 @@ export const encodeHeader = Schema.encode(HeaderFromUint8Array);
 
 export const decodeSyncHeader = Schema.decodeSync(HeaderFromUint8Array);
 export const encodeSyncHeader = Schema.encodeSync(HeaderFromUint8Array);
-
