@@ -501,15 +501,46 @@ export const arbitraryInvalidNameWireFormat = fc.oneof(
 	fc.constant(new Uint8Array(300).fill(1)), // Invalid structure, too large
 );
 
-// Generate valid DNS message (header + questions only, since answer/authority/additional are not implemented)
-export const arbitraryValidDnsMessage = fc.record({
-	header: arbitraryValidQuestionDnsHeader,
-	questions: fc.array(arbitraryValidDnsQuestion, { minLength: 0, maxLength: 5 })
-}).chain(({ header, questions }) => {
-	// Ensure header.qdcount matches the number of questions
-	const updatedHeader = { ...header, qdcount: questions.length, ancount: 0, nscount: 0, arcount: 0 };
-	return fc.constant({ header: updatedHeader, questions });
-});
+// Generate valid DNS message (header + question only, since answer/authority/additional are not implemented)
+export const arbitraryValidDnsMessage = fc
+	.record({
+		header: arbitraryValidQuestionDnsHeader,
+		question: arbitraryValidDnsQuestion,
+	})
+	.chain(({ header, question }) => {
+		// Ensure header.qdcount is 1 for single question
+		const updatedHeader = {
+			...header,
+			qdcount: 1,
+			ancount: 0,
+			nscount: 0,
+			arcount: 0,
+		};
+		return fc.constant({ header: updatedHeader, question: [question] });
+	});
+
+// Generate valid DNS message with multiple questions
+export const arbitraryMultiQuestionDnsMessage = fc
+	.record({
+		header: arbitraryValidQuestionDnsHeader,
+		questionCount: fc.integer({ min: 2, max: 5 }),
+	})
+	.chain(({ header, questionCount }) => {
+		// Generate multiple questions
+		return fc.array(arbitraryValidDnsQuestion, { 
+			minLength: questionCount, 
+			maxLength: questionCount 
+		}).map(questions => {
+			const updatedHeader = {
+				...header,
+				qdcount: questionCount,
+				ancount: 0,
+				nscount: 0,
+				arcount: 0,
+			};
+			return { header: updatedHeader, question: questions };
+		});
+	});
 
 // Generate valid DNS message as Uint8Array
 export const arbitraryValidDnsMessageUint8Array = arbitraryValidDnsMessage.map(
@@ -539,50 +570,116 @@ export const arbitraryValidDnsMessageUint8Array = arbitraryValidDnsMessage.map(
 		headerView.setUint16(8, message.header.nscount, false);
 		headerView.setUint16(10, message.header.arcount, false);
 
-		// Generate all questions bytes
+		// Generate question bytes
+		const question = message.question[0]!; // Get first question from array
+		const questionLength =
+			question.qname.reduce((sum, label) => sum + label.length + 1, 0) + 5;
+		const questionBuffer = new Uint8Array(questionLength);
+		const questionView = new DataView(questionBuffer.buffer);
+
+		let offset = 0;
+
+		// Write labels
+		for (const label of question.qname) {
+			questionBuffer[offset++] = label.length;
+			questionBuffer.set(label, offset);
+			offset += label.length;
+		}
+
+		// Write terminator
+		questionBuffer[offset++] = 0;
+
+		// Write qtype and qclass
+		questionView.setUint16(offset, question.qtype, false);
+		offset += 2;
+		questionView.setUint16(offset, question.qclass, false);
+
+		// Combine header and question
+		const messageBuffer = new Uint8Array(12 + questionLength);
+		messageBuffer.set(new Uint8Array(headerBuffer), 0);
+		messageBuffer.set(questionBuffer, 12);
+
+		return {
+			messageBuffer,
+			header: message.header,
+			question: question, // Return the single question object for backward compatibility
+		};
+	},
+);
+
+// Generate valid multi-question DNS message as Uint8Array
+export const arbitraryMultiQuestionDnsMessageUint8Array = arbitraryMultiQuestionDnsMessage.map(
+	(message) => {
+		// Generate header bytes
+		const headerBuffer = new ArrayBuffer(12);
+		const headerView = new DataView(headerBuffer);
+
+		headerView.setUint16(0, message.header.id, false);
+
+		let byte2 = 0;
+		byte2 |= (message.header.qr & 0x01) << 7;
+		byte2 |= (message.header.opcode & 0x0f) << 3;
+		byte2 |= (message.header.aa & 0x01) << 2;
+		byte2 |= (message.header.tc & 0x01) << 1;
+		byte2 |= message.header.rd & 0x01;
+		headerView.setUint8(2, byte2);
+
+		let byte3 = 0;
+		byte3 |= (message.header.ra & 0x01) << 7;
+		byte3 |= (message.header.z & 0x07) << 4;
+		byte3 |= message.header.rcode & 0x0f;
+		headerView.setUint8(3, byte3);
+
+		headerView.setUint16(4, message.header.qdcount, false);
+		headerView.setUint16(6, message.header.ancount, false);
+		headerView.setUint16(8, message.header.nscount, false);
+		headerView.setUint16(10, message.header.arcount, false);
+
+		// Generate all question bytes
 		const questionBuffers: Uint8Array[] = [];
 		let totalQuestionLength = 0;
-		
-		for (const question of message.questions) {
-			const questionLength = question.qname.reduce((sum, label) => sum + label.length + 1, 0) + 5;
+
+		for (const question of message.question) {
+			const questionLength =
+				question.qname.reduce((sum, label) => sum + label.length + 1, 0) + 5;
 			const questionBuffer = new Uint8Array(questionLength);
 			const questionView = new DataView(questionBuffer.buffer);
-			
+
 			let offset = 0;
-			
+
 			// Write labels
 			for (const label of question.qname) {
 				questionBuffer[offset++] = label.length;
 				questionBuffer.set(label, offset);
 				offset += label.length;
 			}
-			
+
 			// Write terminator
 			questionBuffer[offset++] = 0;
-			
+
 			// Write qtype and qclass
 			questionView.setUint16(offset, question.qtype, false);
 			offset += 2;
 			questionView.setUint16(offset, question.qclass, false);
-			
+
 			questionBuffers.push(questionBuffer);
 			totalQuestionLength += questionLength;
 		}
-		
+
 		// Combine header and all questions
 		const messageBuffer = new Uint8Array(12 + totalQuestionLength);
 		messageBuffer.set(new Uint8Array(headerBuffer), 0);
 		
-		let writeOffset = 12;
+		let offset = 12;
 		for (const questionBuffer of questionBuffers) {
-			messageBuffer.set(questionBuffer, writeOffset);
-			writeOffset += questionBuffer.length;
+			messageBuffer.set(questionBuffer, offset);
+			offset += questionBuffer.length;
 		}
 
 		return {
 			messageBuffer,
 			header: message.header,
-			questions: message.questions,
+			question: message.question, // Return all questions
 		};
 	},
 );
@@ -607,7 +704,7 @@ export const arbitraryCommonDnsMessage = fc
 				nscount: 0,
 				arcount: 0,
 			},
-			questions: [{
+			question: [{
 				qname: [
 					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
 					new Uint8Array([99, 111, 109]), // "com"
@@ -616,7 +713,7 @@ export const arbitraryCommonDnsMessage = fc
 				qclass: 1,
 			}],
 		}),
-		// AAAA record query for localhost
+		// A record query for localhost
 		fc.constant({
 			header: {
 				id: 54321,
@@ -633,9 +730,9 @@ export const arbitraryCommonDnsMessage = fc
 				nscount: 0,
 				arcount: 0,
 			},
-			questions: [{
+			question: [{
 				qname: [new Uint8Array([108, 111, 99, 97, 108, 104, 111, 115, 116])], // "localhost"
-				qtype: RRTypeNameToRRType.AAAA,
+				qtype: RRTypeNameToRRType.A,
 				qclass: 1,
 			}],
 		}),
@@ -656,7 +753,7 @@ export const arbitraryCommonDnsMessage = fc
 				nscount: 0,
 				arcount: 0,
 			},
-			questions: [{
+			question: [{
 				qname: [
 					new Uint8Array([109, 97, 105, 108]), // "mail"
 					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
@@ -693,49 +790,144 @@ export const arbitraryCommonDnsMessage = fc
 		headerView.setUint16(8, message.header.nscount, false);
 		headerView.setUint16(10, message.header.arcount, false);
 
-		// Generate all questions bytes
+		// Generate question bytes
+		const question = message.question[0]!; // Get first question from array
+		const questionLength =
+			question.qname.reduce((sum, label) => sum + label.length + 1, 0) + 5;
+		const questionBuffer = new Uint8Array(questionLength);
+		const questionView = new DataView(questionBuffer.buffer);
+
+		let offset = 0;
+
+		// Write labels
+		for (const label of question.qname) {
+			questionBuffer[offset++] = label.length;
+			questionBuffer.set(label, offset);
+			offset += label.length;
+		}
+
+		// Write terminator
+		questionBuffer[offset++] = 0;
+
+		// Write qtype and qclass
+		questionView.setUint16(offset, question.qtype, false);
+		offset += 2;
+		questionView.setUint16(offset, question.qclass, false);
+
+		// Combine header and question
+		const messageBuffer = new Uint8Array(12 + questionLength);
+		messageBuffer.set(new Uint8Array(headerBuffer), 0);
+		messageBuffer.set(questionBuffer, 12);
+
+		return {
+			messageBuffer,
+			header: message.header,
+			question: question, // Return the single question object for backward compatibility
+		};
+	});
+
+// Generate DNS messages with count mismatches for error testing
+export const arbitraryCountMismatchDnsMessage = fc
+	.record({
+		header: arbitraryValidQuestionDnsHeader,
+		actualQuestionCount: fc.integer({ min: 0, max: 2 }),
+		claimedQuestionCount: fc.integer({ min: 1, max: 5 }),
+	})
+	.filter(({ actualQuestionCount, claimedQuestionCount }) => 
+		actualQuestionCount !== claimedQuestionCount
+	)
+	.chain(({ header, actualQuestionCount, claimedQuestionCount }) => {
+		// Generate only actualQuestionCount questions but claim claimedQuestionCount
+		return fc.array(arbitraryValidDnsQuestion, { 
+			minLength: actualQuestionCount, 
+			maxLength: actualQuestionCount 
+		}).map(questions => {
+			const updatedHeader = {
+				...header,
+				qdcount: claimedQuestionCount, // Mismatch: claim more/fewer than actual
+				ancount: 0,
+				nscount: 0,
+				arcount: 0,
+			};
+			return { header: updatedHeader, question: questions };
+		});
+	});
+
+// Generate count mismatch message as Uint8Array for testing
+export const arbitraryCountMismatchDnsMessageUint8Array = arbitraryCountMismatchDnsMessage.map(
+	(message) => {
+		// Generate header bytes with mismatched count
+		const headerBuffer = new ArrayBuffer(12);
+		const headerView = new DataView(headerBuffer);
+
+		headerView.setUint16(0, message.header.id, false);
+
+		let byte2 = 0;
+		byte2 |= (message.header.qr & 0x01) << 7;
+		byte2 |= (message.header.opcode & 0x0f) << 3;
+		byte2 |= (message.header.aa & 0x01) << 2;
+		byte2 |= (message.header.tc & 0x01) << 1;
+		byte2 |= message.header.rd & 0x01;
+		headerView.setUint8(2, byte2);
+
+		let byte3 = 0;
+		byte3 |= (message.header.ra & 0x01) << 7;
+		byte3 |= (message.header.z & 0x07) << 4;
+		byte3 |= message.header.rcode & 0x0f;
+		headerView.setUint8(3, byte3);
+
+		headerView.setUint16(4, message.header.qdcount, false); // Mismatched count
+		headerView.setUint16(6, message.header.ancount, false);
+		headerView.setUint16(8, message.header.nscount, false);
+		headerView.setUint16(10, message.header.arcount, false);
+
+		// Generate only the actual questions (not the claimed count)
 		const questionBuffers: Uint8Array[] = [];
 		let totalQuestionLength = 0;
-		
-		for (const question of message.questions) {
-			const questionLength = question.qname.reduce((sum, label) => sum + label.length + 1, 0) + 5;
+
+		for (const question of message.question) {
+			const questionLength =
+				question.qname.reduce((sum, label) => sum + label.length + 1, 0) + 5;
 			const questionBuffer = new Uint8Array(questionLength);
 			const questionView = new DataView(questionBuffer.buffer);
-			
+
 			let offset = 0;
-			
+
 			// Write labels
 			for (const label of question.qname) {
 				questionBuffer[offset++] = label.length;
 				questionBuffer.set(label, offset);
 				offset += label.length;
 			}
-			
+
 			// Write terminator
 			questionBuffer[offset++] = 0;
-			
+
 			// Write qtype and qclass
 			questionView.setUint16(offset, question.qtype, false);
 			offset += 2;
 			questionView.setUint16(offset, question.qclass, false);
-			
+
 			questionBuffers.push(questionBuffer);
 			totalQuestionLength += questionLength;
 		}
-		
-		// Combine header and all questions
+
+		// Combine header and actual questions
 		const messageBuffer = new Uint8Array(12 + totalQuestionLength);
 		messageBuffer.set(new Uint8Array(headerBuffer), 0);
 		
-		let writeOffset = 12;
+		let offset = 12;
 		for (const questionBuffer of questionBuffers) {
-			messageBuffer.set(questionBuffer, writeOffset);
-			writeOffset += questionBuffer.length;
+			messageBuffer.set(questionBuffer, offset);
+			offset += questionBuffer.length;
 		}
 
 		return {
 			messageBuffer,
 			header: message.header,
-			questions: message.questions,
+			question: message.question,
+			actualCount: message.question.length,
+			claimedCount: message.header.qdcount,
 		};
-	});
+	},
+);
