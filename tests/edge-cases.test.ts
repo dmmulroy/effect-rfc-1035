@@ -1,11 +1,10 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Exit } from "effect";
+import { Effect } from "effect";
 import {
-	encodeHeader,
-	encodeQuestion,
-	decodeQuestion,
+	encodeQuestionToUint8Array,
+	decodeQuestionFromUint8Array,
 	encodeResourceRecord,
-	decodeResourceRecord,
+	decodeResourceRecordFromUint8Array,
 	RRTypeNameToRRType,
 } from "../src/index";
 import { arbitraryValidName } from "./arbitraries";
@@ -16,9 +15,10 @@ describe("boundary conditions and edge cases", () => {
 		[arbitraryValidName],
 		([labels]) =>
 			Effect.gen(function* () {
-				const encodedByteLength = labels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
+				const encodedByteLength =
+					labels.reduce((sum, label) => sum + label.length + 1, 0) + 1;
 				const nameStruct = { labels, encodedByteLength };
-				
+
 				// Test Name in Question context
 				const question = {
 					qname: nameStruct,
@@ -26,8 +26,9 @@ describe("boundary conditions and edge cases", () => {
 					qclass: 1,
 				} as const;
 
-				const questionEncoded = yield* encodeQuestion(question);
-				const questionDecoded = yield* decodeQuestion(questionEncoded);
+				const questionEncoded = yield* encodeQuestionToUint8Array(question);
+				const questionDecoded =
+					yield* decodeQuestionFromUint8Array(questionEncoded);
 				expect(questionDecoded.qname.labels.length).toEqual(labels.length);
 
 				// Test same Name in ResourceRecord context
@@ -41,7 +42,8 @@ describe("boundary conditions and edge cases", () => {
 				} as const;
 
 				const recordEncoded = yield* encodeResourceRecord(record);
-				const recordDecoded = yield* decodeResourceRecord(recordEncoded);
+				const recordDecoded =
+					yield* decodeResourceRecordFromUint8Array(recordEncoded);
 				expect(recordDecoded.name.labels.length).toBe(labels.length);
 
 				// Both contexts should preserve the same Name structure
@@ -53,4 +55,3 @@ describe("boundary conditions and edge cases", () => {
 			}),
 	);
 });
-

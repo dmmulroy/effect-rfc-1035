@@ -1,6 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Exit } from "effect";
-import { decodeQuestion, encodeQuestion } from "../src/question";
+import {
+	decodeQuestionFromUint8Array,
+	encodeQuestionToUint8Array,
+} from "../src/question";
 import { arbitraryValidDnsQuestionUint8Array } from "./arbitraries";
 import { RRTypeNameToRRType } from "../src";
 
@@ -10,7 +13,9 @@ describe("question", () => {
 		[arbitraryValidDnsQuestionUint8Array],
 		([uint8Array]) =>
 			Effect.gen(function* () {
-				const result = yield* Effect.exit(decodeQuestion(uint8Array));
+				const result = yield* Effect.exit(
+					decodeQuestionFromUint8Array(uint8Array),
+				);
 				if (Exit.isFailure(result)) {
 					console.log(JSON.stringify(result));
 				}
@@ -55,7 +60,9 @@ describe("question", () => {
 				questionBytes[invalidLabel.length + 4] = 0;
 				questionBytes[invalidLabel.length + 5] = 1;
 
-				const result = yield* Effect.exit(decodeQuestion(questionBytes));
+				const result = yield* Effect.exit(
+					decodeQuestionFromUint8Array(questionBytes),
+				);
 				expect(Exit.isFailure(result)).toBe(true);
 			}
 		}),
@@ -80,7 +87,9 @@ describe("question", () => {
 				questionBytes[invalidLabel.length + 4] = 0;
 				questionBytes[invalidLabel.length + 5] = 1;
 
-				const result = yield* Effect.exit(decodeQuestion(questionBytes));
+				const result = yield* Effect.exit(
+					decodeQuestionFromUint8Array(questionBytes),
+				);
 				expect(Exit.isFailure(result)).toBe(true);
 			}),
 	);
@@ -102,14 +111,15 @@ describe("question", () => {
 								new Uint8Array(Array.from(label, (c) => c.charCodeAt(0))),
 						),
 
-						encodedByteLength: domain.reduce((sum, label) => sum + label.length + 1, 0) + 1,
+						encodedByteLength:
+							domain.reduce((sum, label) => sum + label.length + 1, 0) + 1,
 					},
 					qtype: RRTypeNameToRRType.A,
 					qclass: 1,
 				} as const;
 
-				const encoded = yield* encodeQuestion(question);
-				const decoded = yield* decodeQuestion(encoded);
+				const encoded = yield* encodeQuestionToUint8Array(question);
+				const decoded = yield* decodeQuestionFromUint8Array(encoded);
 				expect(decoded.qname.labels.length).toBe(domain.length);
 			}
 		}),
@@ -125,13 +135,16 @@ describe("question", () => {
 
 			for (const combo of invalidCombinations) {
 				const question = {
-					qname: { labels: [new Uint8Array([116, 101, 115, 116])], encodedByteLength: 6 }, // "test" - 4 bytes + 1 length prefix + 1 terminator
+					qname: {
+						labels: [new Uint8Array([116, 101, 115, 116])],
+						encodedByteLength: 6,
+					}, // "test" - 4 bytes + 1 length prefix + 1 terminator
 					qtype: combo.qtype,
 					qclass: combo.qclass,
 				};
 
 				// @ts-expect-error -- testing invalid case
-				const result = yield* Effect.exit(encodeQuestion(question));
+				const result = yield* Effect.exit(encodeQuestionToUint8Array(question));
 				expect(Exit.isFailure(result)).toBe(true);
 			}
 		}),
@@ -142,8 +155,8 @@ describe("question", () => {
 		[arbitraryValidDnsQuestionUint8Array],
 		([uint8Array]) =>
 			Effect.gen(function* () {
-				const decoded = yield* decodeQuestion(uint8Array);
-				const encoded = yield* encodeQuestion(decoded);
+				const decoded = yield* decodeQuestionFromUint8Array(uint8Array);
+				const encoded = yield* encodeQuestionToUint8Array(decoded);
 				expect(Array.from(encoded)).toEqual(Array.from(uint8Array));
 			}),
 	);
@@ -163,8 +176,8 @@ describe("question", () => {
 				qclass: 1,
 			} as const;
 
-			const encoded = yield* encodeQuestion(question);
-			const decoded = yield* decodeQuestion(encoded);
+			const encoded = yield* encodeQuestionToUint8Array(question);
+			const decoded = yield* decodeQuestionFromUint8Array(encoded);
 			expect(decoded.qname.labels.length).toBe(2);
 		}),
 	);
@@ -180,8 +193,8 @@ describe("question", () => {
 					qclass: 1,
 				} as const;
 
-				const encoded = yield* encodeQuestion(question);
-				const decoded = yield* decodeQuestion(encoded);
+				const encoded = yield* encodeQuestionToUint8Array(question);
+				const decoded = yield* decodeQuestionFromUint8Array(encoded);
 				expect(decoded.qname.labels[0]?.length).toBe(63);
 			}),
 		);
@@ -204,8 +217,8 @@ describe("question", () => {
 					qclass: 1,
 				} as const;
 
-				const encoded = yield* encodeQuestion(question);
-				const decoded = yield* decodeQuestion(encoded);
+				const encoded = yield* encodeQuestionToUint8Array(question);
+				const decoded = yield* decodeQuestionFromUint8Array(encoded);
 				expect(decoded.qname.labels.length).toBe(3);
 
 				// Invalid Name should fail in Question
@@ -224,7 +237,9 @@ describe("question", () => {
 					qclass: 1,
 				} as const;
 
-				const result = yield* Effect.exit(encodeQuestion(invalidQuestion));
+				const result = yield* Effect.exit(
+					encodeQuestionToUint8Array(invalidQuestion),
+				);
 				expect(Exit.isFailure(result)).toBe(true);
 			}),
 		);

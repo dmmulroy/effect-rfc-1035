@@ -1,6 +1,6 @@
 import { Effect, Either, ParseResult, Schema, Struct } from "effect";
-import { Name, decodeNameFromUint8Array } from "./labels";
-import { Uint16, Uint31, isUint31 } from "./types";
+import { Name, decodeNameFromUint8Array } from "./name";
+import { DnsPacketCursor, Uint16, Uint31, isUint31 } from "./types";
 import { getUint16, getUint32 } from "./utils";
 
 /**
@@ -395,5 +395,47 @@ export const ResourceRecordFromUint8Array = Schema.transformOrFail(
 		"Each resource record follows a standardized format to convey information such as domain names, record types, TTL, and associated data.",
 });
 
-export const decodeResourceRecord = Schema.decode(ResourceRecordFromUint8Array);
+export const decodeResourceRecordFromUint8Array = Schema.decode(
+	ResourceRecordFromUint8Array,
+);
 export const encodeResourceRecord = Schema.encode(ResourceRecordFromUint8Array);
+
+const ResourceRecordWithEncodedByteLengthFromDnsPacketCursor =
+	Schema.transformOrFail(
+		DnsPacketCursor.schema,
+		Schema.Struct({
+			resourceRecord: ResourceRecord,
+			encodedByteLength: Schema.Int,
+		}),
+		{
+			strict: true,
+			decode(cursor) {
+				return decodeResourceRecordFromUint8Array(
+					cursor.uint8Array.subarray(cursor.offset),
+				).pipe(
+					Effect.map((resourceRecord) => ({
+						resourceRecord,
+						// 10 bytes for type, class, ttl, rdlength
+						encodedByteLength:
+							resourceRecord.name.encodedByteLength +
+							10 +
+							resourceRecord.rdlength,
+					})),
+					Effect.mapError(Struct.get("issue")),
+				);
+			},
+			encode(resourceRecord, _, ast) {
+				return ParseResult.fail(
+					new ParseResult.Type(
+						ast,
+						resourceRecord,
+						"encoding is not supported",
+					),
+				);
+			},
+		},
+	);
+
+export const decodeResourceRecordFromDnsPacketCursor = Schema.decode(
+	ResourceRecordWithEncodedByteLengthFromDnsPacketCursor,
+);

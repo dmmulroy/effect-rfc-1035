@@ -684,6 +684,427 @@ export const arbitraryMultiQuestionDnsMessageUint8Array = arbitraryMultiQuestion
 	},
 );
 
+// Generate comprehensive QTYPE/QCLASS combinations beyond basic A records
+export const arbitraryComprehensiveQType = fc.constantFrom(
+	RRTypeNameToRRType.A,      // IPv4 address
+	RRTypeNameToRRType.NS,     // Name server
+	RRTypeNameToRRType.CNAME,  // Canonical name
+	RRTypeNameToRRType.SOA,    // Start of authority
+	RRTypeNameToRRType.PTR,    // Pointer
+	RRTypeNameToRRType.MX,     // Mail exchange
+	RRTypeNameToRRType.TXT,    // Text
+	RRTypeNameToRRType.HINFO,  // Host info
+);
+
+export const arbitraryComprehensiveQClass = fc.constantFrom(
+	1, // IN (Internet)
+	3, // CH (Chaos)
+	4, // HS (Hesiod)
+);
+
+// Generate specific RDATA for different record types
+export const arbitraryTypedRData = fc.oneof(
+	// A record - 4 bytes IPv4
+	fc.constant({ type: RRTypeNameToRRType.A, rdata: new Uint8Array([192, 168, 1, 1]) }),
+	// NS record - domain name (simplified as text)
+	fc.constant({ type: RRTypeNameToRRType.NS, rdata: new Uint8Array([3, 110, 115, 49, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]) }),
+	// CNAME record - domain name
+	fc.constant({ type: RRTypeNameToRRType.CNAME, rdata: new Uint8Array([3, 119, 119, 119, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]) }),
+	// MX record - preference + domain name
+	fc.constant({ type: RRTypeNameToRRType.MX, rdata: new Uint8Array([0, 10, 4, 109, 97, 105, 108, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]) }),
+	// TXT record - text data
+	fc.constant({ type: RRTypeNameToRRType.TXT, rdata: new Uint8Array([11, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]) }),
+	// PTR record - domain name
+	fc.constant({ type: RRTypeNameToRRType.PTR, rdata: new Uint8Array([7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]) }),
+);
+
+// Generate realistic resource records with proper RDATA
+export const arbitraryRealisticResourceRecord = arbitraryTypedRData.chain(({ type, rdata }) =>
+	fc.record({
+		name: arbitraryValidDomainName,
+		type: fc.constant(type),
+		class: arbitraryComprehensiveQClass,
+		ttl: arbitraryRealisticTtl,
+		rdlength: fc.constant(rdata.length),
+		rdata: fc.constant(rdata),
+	})
+);
+
+// Generate IDN/punycode domain names
+export const arbitraryIdnDomainName = fc.oneof(
+	// ASCII-compatible encoding (ACE) with xn-- prefix
+	fc.constant([
+		new Uint8Array([120, 110, 45, 45, 110, 120, 97, 109, 101, 49, 97]), // "xn--nxamel1a" (example punycode)
+		new Uint8Array([99, 111, 109]), // "com"
+	]),
+	// Mixed ASCII/Unicode scenarios (represented as encoded bytes)
+	fc.constant([
+		new Uint8Array([116, 101, 115, 116]), // "test"
+		new Uint8Array([120, 110, 45, 45, 102, 115, 113, 117, 56, 48, 97]), // "xn--fsqu80a" (example)
+		new Uint8Array([111, 114, 103]), // "org"
+	]),
+	// Maximum length punycode labels
+	fc.constant([
+		new Uint8Array(Array.from("xn--" + "a".repeat(59), c => c.charCodeAt(0))), // 63-char punycode label
+		new Uint8Array([99, 111, 109]), // "com"
+	]),
+);
+
+// Generate complex multi-section DNS messages with realistic scenarios
+export const arbitraryComplexMultiSectionMessage = fc.oneof(
+	// A record query with NS authority records
+	fc.constant({
+		header: {
+			id: 12345,
+			qr: 1, // Response
+			opcode: 0,
+			aa: 1, // Authoritative
+			tc: 0,
+			rd: 1,
+			ra: 1,
+			z: 0,
+			rcode: 0,
+			qdcount: 1,
+			ancount: 1,
+			nscount: 2,
+			arcount: 2,
+		},
+		questions: [{
+			qname: [
+				new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+				new Uint8Array([99, 111, 109]), // "com"
+			],
+			qtype: RRTypeNameToRRType.A,
+			qclass: 1,
+		}],
+		answers: [{
+			name: [
+				new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+				new Uint8Array([99, 111, 109]), // "com"
+			],
+			type: RRTypeNameToRRType.A,
+			class: 1,
+			ttl: 3600,
+			rdlength: 4,
+			rdata: new Uint8Array([192, 168, 1, 1]),
+		}],
+		authority: [
+			{
+				name: [new Uint8Array([99, 111, 109])], // "com"
+				type: RRTypeNameToRRType.NS,
+				class: 1,
+				ttl: 86400,
+				rdlength: 17,
+				rdata: new Uint8Array([3, 110, 115, 49, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
+			},
+			{
+				name: [new Uint8Array([99, 111, 109])], // "com"
+				type: RRTypeNameToRRType.NS,
+				class: 1,
+				ttl: 86400,
+				rdlength: 17,
+				rdata: new Uint8Array([3, 110, 115, 50, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
+			}
+		],
+		additional: [
+			{
+				name: [
+					new Uint8Array([110, 115, 49]), // "ns1"
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.A,
+				class: 1,
+				ttl: 3600,
+				rdlength: 4,
+				rdata: new Uint8Array([192, 168, 1, 10]),
+			},
+			{
+				name: [
+					new Uint8Array([110, 115, 50]), // "ns2"
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.A,
+				class: 1,
+				ttl: 3600,
+				rdlength: 4,
+				rdata: new Uint8Array([192, 168, 1, 11]),
+			}
+		],
+	}),
+	
+	// CNAME chain scenario
+	fc.constant({
+		header: {
+			id: 54321,
+			qr: 1,
+			opcode: 0,
+			aa: 0,
+			tc: 0,
+			rd: 1,
+			ra: 1,
+			z: 0,
+			rcode: 0,
+			qdcount: 1,
+			ancount: 2,
+			nscount: 0,
+			arcount: 0,
+		},
+		questions: [{
+			qname: [
+				new Uint8Array([119, 119, 119]), // "www"
+				new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+				new Uint8Array([99, 111, 109]), // "com"
+			],
+			qtype: RRTypeNameToRRType.A,
+			qclass: 1,
+		}],
+		answers: [
+			{
+				name: [
+					new Uint8Array([119, 119, 119]), // "www"
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.CNAME,
+				class: 1,
+				ttl: 300,
+				rdlength: 17,
+				rdata: new Uint8Array([3, 119, 119, 119, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
+			},
+			{
+				name: [
+					new Uint8Array([119, 119, 119]), // "www"
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.A,
+				class: 1,
+				ttl: 3600,
+				rdlength: 4,
+				rdata: new Uint8Array([203, 0, 113, 1]),
+			}
+		],
+		authority: [],
+		additional: [],
+	}),
+	
+	// MX record with A records scenario
+	fc.constant({
+		header: {
+			id: 65535,
+			qr: 1,
+			opcode: 0,
+			aa: 1,
+			tc: 0,
+			rd: 1,
+			ra: 1,
+			z: 0,
+			rcode: 0,
+			qdcount: 1,
+			ancount: 2,
+			nscount: 0,
+			arcount: 2,
+		},
+		questions: [{
+			qname: [
+				new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+				new Uint8Array([99, 111, 109]), // "com"
+			],
+			qtype: RRTypeNameToRRType.MX,
+			qclass: 1,
+		}],
+		answers: [
+			{
+				name: [
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.MX,
+				class: 1,
+				ttl: 3600,
+				rdlength: 20,
+				rdata: new Uint8Array([0, 10, 4, 109, 97, 105, 108, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
+			},
+			{
+				name: [
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.MX,
+				class: 1,
+				ttl: 3600,
+				rdlength: 21,
+				rdata: new Uint8Array([0, 20, 5, 109, 97, 105, 108, 50, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
+			}
+		],
+		authority: [],
+		additional: [
+			{
+				name: [
+					new Uint8Array([109, 97, 105, 108]), // "mail"
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.A,
+				class: 1,
+				ttl: 3600,
+				rdlength: 4,
+				rdata: new Uint8Array([192, 168, 1, 20]),
+			},
+			{
+				name: [
+					new Uint8Array([109, 97, 105, 108, 50]), // "mail2"
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.A,
+				class: 1,
+				ttl: 3600,
+				rdlength: 4,
+				rdata: new Uint8Array([192, 168, 1, 21]),
+			}
+		],
+	}),
+);
+
+// Generate protocol error scenarios for malformed messages
+export const arbitraryMalformedDnsMessage = fc.oneof(
+	// Truncated message at various boundaries
+	fc.record({
+		description: fc.constant("Truncated header"),
+		data: fc.uint8Array({ minLength: 1, maxLength: 11 }), // Less than 12 bytes
+	}),
+	
+	// Invalid field combinations
+	fc.constant({
+		description: "Response with questions but no answers",
+		data: (() => {
+			const buffer = new ArrayBuffer(12);
+			const view = new DataView(buffer);
+			view.setUint16(0, 12345, false); // ID
+			view.setUint8(2, 0x80); // QR=1 (response), others=0
+			view.setUint8(3, 0); // RA=0, Z=0, RCODE=0
+			view.setUint16(4, 1, false); // QDCOUNT=1
+			view.setUint16(6, 0, false); // ANCOUNT=0 (invalid for response)
+			view.setUint16(8, 0, false); // NSCOUNT=0
+			view.setUint16(10, 0, false); // ARCOUNT=0
+			return new Uint8Array(buffer);
+		})(),
+	}),
+	
+	// Malformed label encoding
+	fc.constant({
+		description: "Invalid label length pointer",
+		data: new Uint8Array([
+			// Header (12 bytes)
+			0x30, 0x39, // ID
+			0x01, 0x00, // QR=0, OPCODE=0, AA=0, TC=0, RD=1
+			0x00, 0x01, // QDCOUNT=1
+			0x00, 0x00, // ANCOUNT=0
+			0x00, 0x00, // NSCOUNT=0
+			0x00, 0x00, // ARCOUNT=0
+			// Question with invalid label
+			0xFF, // Invalid length (255 > 63)
+			0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example" (but length says 255)
+			0x00, // Terminator
+			0x00, 0x01, // QTYPE=A
+			0x00, 0x01, // QCLASS=IN
+		]),
+	}),
+	
+	// Out-of-bounds resource record data
+	fc.constant({
+		description: "RDLENGTH exceeds available data",
+		data: new Uint8Array([
+			// Header (12 bytes)
+			0x30, 0x39, // ID
+			0x81, 0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1
+			0x00, 0x01, // QDCOUNT=1
+			0x00, 0x01, // ANCOUNT=1
+			0x00, 0x00, // NSCOUNT=0
+			0x00, 0x00, // ARCOUNT=0
+			// Question
+			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
+			0x03, 0x63, 0x6F, 0x6D, // "com"
+			0x00, // Terminator
+			0x00, 0x01, // QTYPE=A
+			0x00, 0x01, // QCLASS=IN
+			// Answer with invalid RDLENGTH
+			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
+			0x03, 0x63, 0x6F, 0x6D, // "com"
+			0x00, // Terminator
+			0x00, 0x01, // TYPE=A
+			0x00, 0x01, // CLASS=IN
+			0x00, 0x00, 0x0E, 0x10, // TTL=3600
+			0x00, 0x10, // RDLENGTH=16 (but only 4 bytes follow)
+			0xC0, 0xA8, 0x01, 0x01, // RDATA (4 bytes, but RDLENGTH claims 16)
+		]),
+	}),
+);
+
+// Generate boundary condition test cases
+export const arbitraryBoundaryConditions = fc.oneof(
+	// Maximum message size scenarios (512 bytes UDP limit)
+	fc.constant({
+		description: "Maximum UDP message size",
+		size: 512,
+		data: new Uint8Array(512).fill(0),
+	}),
+	
+	// Deeply nested domain names approaching 255-byte limit
+	fc.constant({
+		description: "Maximum domain name length",
+		domainName: Array(127).fill(new Uint8Array([1, 97])), // 127 labels of "a" = 254 bytes
+	}),
+	
+	// Resource records at maximum data length
+	fc.constant({
+		description: "Maximum RDLENGTH",
+		rdlength: 65535,
+		rdata: new Uint8Array(65535).fill(65), // Max possible RDATA
+	}),
+	
+	// Circular reference detection in pointer chains
+	fc.constant({
+		description: "Circular pointer reference",
+		data: new Uint8Array([
+			// Header
+			0x30, 0x39, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			// Question with circular pointer
+			0xC0, 0x0C, // Pointer to offset 12 (points to itself)
+			0x00, 0x01, // QTYPE=A
+			0x00, 0x01, // QCLASS=IN
+		]),
+	}),
+);
+
+// Generate performance stress test scenarios
+export const arbitraryStressTestMessage = fc.oneof(
+	// Large message with many resource records
+	fc.record({
+		description: fc.constant("Large message with 100 resource records"),
+		recordCount: fc.constant(100),
+		messageSize: fc.integer({ min: 5000, max: 10000 }),
+	}),
+	
+	// Deep pointer chain nesting
+	fc.record({
+		description: fc.constant("Deep pointer chain nesting"),
+		chainDepth: fc.integer({ min: 50, max: 100 }),
+		pointerCount: fc.integer({ min: 20, max: 50 }),
+	}),
+	
+	// Pathological input with maximum complexity
+	fc.record({
+		description: fc.constant("Maximum complexity message"),
+		labelCount: fc.constant(255),
+		recordCount: fc.constant(65535),
+		totalSize: fc.constant(65535),
+	}),
+);
+
 // Generate specific test case messages for common scenarios
 export const arbitraryCommonDnsMessage = fc
 	.oneof(

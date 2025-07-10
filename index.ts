@@ -1,2 +1,2 @@
 // Re-export everything from src for backwards compatibility
-export * from "./src/index.js";
+export * from "./src/index";

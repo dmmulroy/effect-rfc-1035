@@ -1,6 +1,6 @@
 import { Either, ParseResult, SchemaAST } from "effect";
 import { isError } from "effect/Predicate";
-import type { Uint8 } from "./types.js";
+import type { Uint8 } from "./types";
 
 export function getUint8(
 	dataView: DataView,

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Exit } from "effect";
-import { decodeHeader, encodeHeader } from "../src/header.js";
-import { 
-	arbitraryValidDnsHeaderUint8Array, 
-	arbitraryInvalidDnsHeaderUint8Array 
-} from "./arbitraries.js";
+import {
+	decodeHeaderFromUint8Array,
+	encodeHeaderToUint8Array,
+} from "../src/header";
+import {
+	arbitraryValidDnsHeaderUint8Array,
+	arbitraryInvalidDnsHeaderUint8Array,
+} from "./arbitraries";
 
 describe("header", () => {
 	it.effect.prop(
@@ -12,7 +15,9 @@ describe("header", () => {
 		[arbitraryValidDnsHeaderUint8Array],
 		([uint8Array]) =>
 			Effect.gen(function* () {
-				const result = yield* Effect.exit(decodeHeader(uint8Array));
+				const result = yield* Effect.exit(
+					decodeHeaderFromUint8Array(uint8Array),
+				);
 				expect(Exit.isSuccess(result)).toBe(true);
 
 				if (Exit.isSuccess(result)) {
@@ -30,7 +35,9 @@ describe("header", () => {
 		[arbitraryInvalidDnsHeaderUint8Array],
 		([uint8Array]) =>
 			Effect.gen(function* () {
-				const result = yield* Effect.exit(decodeHeader(uint8Array));
+				const result = yield* Effect.exit(
+					decodeHeaderFromUint8Array(uint8Array),
+				);
 				// RFC 1035 requires rejection of:
 				// - Non-zero Z field
 				// - Reserved opcodes 3-15
@@ -46,7 +53,9 @@ describe("header", () => {
 			const dataView = new DataView(headerBytes.buffer);
 			dataView.setUint8(3, 0x70); // Set Z bits to non-zero (bits 4-6)
 
-			const result = yield* Effect.exit(decodeHeader(headerBytes));
+			const result = yield* Effect.exit(
+				decodeHeaderFromUint8Array(headerBytes),
+			);
 			expect(Exit.isFailure(result)).toBe(true);
 		}),
 	);
@@ -61,7 +70,9 @@ describe("header", () => {
 				const dataView = new DataView(headerBytes.buffer);
 				dataView.setUint8(2, (opcode & 0x0f) << 3);
 
-				const result = yield* Effect.exit(decodeHeader(headerBytes));
+				const result = yield* Effect.exit(
+					decodeHeaderFromUint8Array(headerBytes),
+				);
 				expect(Exit.isFailure(result)).toBe(true);
 			}
 		}),
@@ -77,24 +88,26 @@ describe("header", () => {
 				const dataView = new DataView(headerBytes.buffer);
 				dataView.setUint8(3, rcode & 0x0f);
 
-				const result = yield* Effect.exit(decodeHeader(headerBytes));
+				const result = yield* Effect.exit(
+					decodeHeaderFromUint8Array(headerBytes),
+				);
 				expect(Exit.isFailure(result)).toBe(true);
 			}
 		}),
 	);
 
-	it.effect(
-		"validates semantic consistency between QR and other fields",
-		() =>
-			Effect.gen(function* () {
-				// RFC 1035: queries (QR=0) cannot be authoritative (AA=1)
-				const queryHeader = new Uint8Array(12);
-				const dataView = new DataView(queryHeader.buffer);
-				dataView.setUint8(2, 0x04); // QR=0, AA=1
+	it.effect("validates semantic consistency between QR and other fields", () =>
+		Effect.gen(function* () {
+			// RFC 1035: queries (QR=0) cannot be authoritative (AA=1)
+			const queryHeader = new Uint8Array(12);
+			const dataView = new DataView(queryHeader.buffer);
+			dataView.setUint8(2, 0x04); // QR=0, AA=1
 
-				const result = yield* Effect.exit(decodeHeader(queryHeader));
-				expect(Exit.isFailure(result)).toBe(true);
-			}),
+			const result = yield* Effect.exit(
+				decodeHeaderFromUint8Array(queryHeader),
+			);
+			expect(Exit.isFailure(result)).toBe(true);
+		}),
 	);
 
 	it.effect.prop(
@@ -102,8 +115,8 @@ describe("header", () => {
 		[arbitraryValidDnsHeaderUint8Array],
 		([uint8Array]) =>
 			Effect.gen(function* () {
-				const decoded = yield* decodeHeader(uint8Array);
-				const encoded = yield* encodeHeader(decoded);
+				const decoded = yield* decodeHeaderFromUint8Array(uint8Array);
+				const encoded = yield* encodeHeaderToUint8Array(decoded);
 				expect(Array.from(encoded)).toEqual(Array.from(uint8Array));
 			}),
 	);
@@ -114,7 +127,9 @@ describe("header", () => {
 
 			for (const length of invalidLengths) {
 				const headerBytes = new Uint8Array(length);
-				const result = yield* Effect.exit(decodeHeader(headerBytes));
+				const result = yield* Effect.exit(
+					decodeHeaderFromUint8Array(headerBytes),
+				);
 				expect(Exit.isFailure(result)).toBe(true);
 			}
 		}),
@@ -139,7 +154,7 @@ describe("header", () => {
 				arcount: 0x1357,
 			} as const;
 
-			const encoded = yield* encodeHeader(header);
+			const encoded = yield* encodeHeaderToUint8Array(header);
 
 			// Verify byte order manually - should be big-endian (network byte order)
 			expect(encoded[0]).toBe(0x12); // High byte of ID
@@ -155,3 +170,4 @@ describe("header", () => {
 		}),
 	);
 });
+

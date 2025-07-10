@@ -1,5 +1,13 @@
-import { Either, ParseResult, Schema } from "effect";
-import { Bit, Nibble, Uint16, Uint3 } from "./types";
+import {
+	Arbitrary,
+	Effect,
+	Either,
+	FastCheck,
+	ParseResult,
+	Schema,
+	Struct,
+} from "effect";
+import { Bit, DnsPacketCursor, Nibble, Uint16, Uint3 } from "./types";
 import { getUint8, getUint16 } from "./utils";
 
 /**
@@ -280,8 +288,48 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 	},
 );
 
-export const decodeHeader = Schema.decode(HeaderFromUint8Array);
-export const encodeHeader = Schema.encode(HeaderFromUint8Array);
+export const decodeHeaderFromUint8Array = Schema.decode(HeaderFromUint8Array);
+export const encodeHeaderToUint8Array = Schema.encode(HeaderFromUint8Array);
 
 export const decodeSyncHeader = Schema.decodeSync(HeaderFromUint8Array);
 export const encodeSyncHeader = Schema.encodeSync(HeaderFromUint8Array);
+
+// decoding
+// DnsPacketCursor => { header: Heaader, bytesConsumed: number }
+//
+// encoding
+// { header: Heaader, bytesConsumed: number } => DnsPacketCursor
+//
+//
+const HEADER_BYTE_LENGTH = 12;
+
+const HeaderWithBytesConsumedFromDnsPacketCursor = Schema.transformOrFail(
+	DnsPacketCursor.schema,
+	Schema.Struct({
+		header: Header,
+		bytesConsumed: Schema.Int,
+	}),
+	{
+		strict: true,
+		decode(cursor) {
+			return decodeHeaderFromUint8Array(
+				cursor.uint8Array.subarray(cursor.offset),
+			).pipe(
+				Effect.map((header) => ({
+					header,
+					bytesConsumed: HEADER_BYTE_LENGTH,
+				})),
+				Effect.mapError(Struct.get("issue")),
+			);
+		},
+		encode(header, _, ast) {
+			return ParseResult.fail(
+				new ParseResult.Type(ast, header, "encoding is not supported"),
+			);
+		},
+	},
+);
+
+export const decodeHeaderFromDnsPacket = Schema.decode(
+	HeaderWithBytesConsumedFromDnsPacketCursor,
+);

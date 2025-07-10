@@ -1,4 +1,6 @@
 import { Schema } from "effect";
+import { uint8Array } from "effect/FastCheck";
+import { Uint8ArrayFromSelf } from "effect/Schema";
 
 export const Nibble = Schema.Number.pipe(
 	Schema.between(0, 15, {
@@ -49,3 +51,26 @@ export function isUint31(num: number): num is Uint31 {
 	return Schema.is(Uint31)(num);
 }
 
+const DnsPacketCursorSchema = Schema.Struct({
+	uint8Array: Uint8ArrayFromSelf,
+	offset: Schema.Number,
+}).pipe(
+	Schema.mutable,
+	Schema.annotations({
+		identifier: "DnsPacketCursor",
+		description: "Tracks the current byte offset during decoding",
+	}),
+);
+
+export type DnsPacketCursor = typeof DnsPacketCursorSchema.Type;
+
+export const DnsPacketCursor = {
+	schema: DnsPacketCursorSchema,
+	fromUint8Array: (
+		uint8Array: Uint8Array,
+		offset: number = 0,
+	): DnsPacketCursor => ({
+		uint8Array,
+		offset,
+	}),
+} as const;

@@ -1,7 +1,12 @@
 import { Effect, Either, ParseResult, Schema, Struct } from "effect";
-import { Name, decodeNameFromUint8Array } from "./labels";
+import {
+	Name,
+	decodeNameFromDnsPacketCursor,
+	decodeNameFromUint8Array,
+} from "./name";
 import { getUint16 } from "./utils";
 import { ResourceRecordClass, ResourceRecordType } from "./resource-record";
+import { DnsPacketCursor } from "./types";
 
 const QTypeSchema = Schema.Union(
 	ResourceRecordType,
@@ -300,8 +305,118 @@ export const QuestionFromUint8Array = Schema.transformOrFail(
 	},
 );
 
-export const decodeQuestion = Schema.decode(QuestionFromUint8Array);
-export const encodeQuestion = Schema.encode(QuestionFromUint8Array);
+export const decodeQuestionFromUint8Array = Schema.decode(
+	QuestionFromUint8Array,
+);
 
-export const decodeSyncQuestion = Schema.decodeSync(QuestionFromUint8Array);
-export const encodeSyncQuestion = Schema.encodeSync(QuestionFromUint8Array);
+export const encodeQuestionToUint8Array = Schema.encode(QuestionFromUint8Array);
+
+const MAX_QUESTION_BYTE_LENGTH = 261;
+
+const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
+	DnsPacketCursor.schema,
+	Schema.Struct({
+		question: Question,
+		encodedByteLength: Schema.Int,
+	}),
+	{
+		strict: true,
+		decode(cursor, _, ast) {
+			return Effect.gen(function* () {
+				const uint8Array = cursor.uint8Array.subarray(
+					cursor.offset,
+					cursor.offset + MAX_QUESTION_BYTE_LENGTH,
+				);
+
+				if (uint8Array.length < 5) {
+					return yield* ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`Question must have a minimum length of 5 bytes, received ${uint8Array.length}`,
+						),
+					);
+				}
+
+				if (uint8Array.length > 260) {
+					return yield* ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`Question must have a maximum length of 260 bytes, received ${uint8Array.length}`,
+						),
+					);
+				}
+
+				const qname = yield* decodeNameFromDnsPacketCursor(cursor).pipe(
+					Effect.mapError(Struct.get("issue")),
+				);
+
+				// const qname = yield* decodeNameFromUint8Array(uint8Array).pipe(
+				// 	Effect.mapError(Struct.get("issue")),
+				// );
+
+				const dataView = new DataView(
+					uint8Array.buffer,
+					uint8Array.byteOffset,
+					uint8Array.byteLength,
+				);
+
+				let offset = qname.encodedByteLength;
+
+				console.log({ qname });
+
+				const qtypeResult = Either.map(
+					getUint16(dataView, ++offset, ast),
+					decodeQType,
+				);
+
+				if (Either.isLeft(qtypeResult)) {
+					return yield* ParseResult.fail(qtypeResult.left);
+				}
+				const qtype = yield* Effect.mapError(
+					qtypeResult.right,
+					Struct.get("issue"),
+				);
+
+				console.log({ qtype });
+
+				const qclassResult = Either.map(
+					getUint16(dataView, offset + 2, ast),
+					decodeQClass,
+				);
+
+				if (Either.isLeft(qclassResult)) {
+					return yield* ParseResult.fail(qclassResult.left);
+				}
+
+				const qclass = yield* Effect.mapError(
+					qclassResult.right,
+					Struct.get("issue"),
+				);
+				console.log({ qclass });
+
+				const question = Question.make({
+					qname,
+					qtype,
+					qclass,
+				});
+
+				return {
+					question,
+					// 4 bytes for qtype, qclass
+					encodedByteLength: question.qname.encodedByteLength + 4,
+				};
+			});
+		},
+		encode(question, _, ast) {
+			return ParseResult.fail(
+				new ParseResult.Type(ast, question, "encoding is not supported"),
+			);
+		},
+	},
+);
+
+export const decodeQuestionFromDnsPacketCursor = Schema.decode(
+	QuestionWithEncodedByteLengthFromDnsPacketCursor,
+);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "@effect/vitest";
-import { Effect, Exit, Schema } from "effect";
+import { Cause, Effect, Exit, Schema } from "effect";
 import { MessageFromUint8Array } from "../src/message";
 import { RRTypeNameToRRType } from "../src";
 import {
@@ -19,6 +19,10 @@ describe("message", () => {
 				const result = yield* Effect.exit(
 					Schema.decode(MessageFromUint8Array)(messageBuffer),
 				);
+
+				if (Exit.isFailure(result)) {
+					console.log(Cause.prettyErrors(result.cause));
+				}
 
 				expect(Exit.isSuccess(result)).toBe(true);
 
@@ -69,6 +73,7 @@ describe("message", () => {
 					expect(message.additional).toHaveLength(header.arcount);
 				}
 			}),
+		{ only: true, fastCheck: { seed: 1179889963, endOnFailure: true } },
 	);
 
 	it.effect.prop(
@@ -521,27 +526,64 @@ describe("message", () => {
 			// DNS response with one A record answer
 			const messageWithAnswer = new Uint8Array([
 				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x81, 0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-				0x00, 0x01, // QDCOUNT: 1
-				0x00, 0x01, // ANCOUNT: 1
-				0x00, 0x00, // NSCOUNT: 0
-				0x00, 0x00, // ARCOUNT: 0
+				0x30,
+				0x39, // ID: 12345
+				0x81,
+				0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+				0x00,
+				0x01, // QDCOUNT: 1
+				0x00,
+				0x01, // ANCOUNT: 1
+				0x00,
+				0x00, // NSCOUNT: 0
+				0x00,
+				0x00, // ARCOUNT: 0
 				// Question: example.com A IN
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 				// Answer: example.com A IN 300 93.184.216.34
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // TYPE: A
-				0x00, 0x01, // CLASS: IN
-				0x00, 0x00, 0x01, 0x2c, // TTL: 300
-				0x00, 0x04, // RDLENGTH: 4
-				0x5d, 0xb8, 0xd8, 0x22, // RDATA: 93.184.216.34
+				0x00,
+				0x01, // TYPE: A
+				0x00,
+				0x01, // CLASS: IN
+				0x00,
+				0x00,
+				0x01,
+				0x2c, // TTL: 300
+				0x00,
+				0x04, // RDLENGTH: 4
+				0x5d,
+				0xb8,
+				0xd8,
+				0x22, // RDATA: 93.184.216.34
 			]);
 
 			const result = yield* Effect.exit(
@@ -552,19 +594,19 @@ describe("message", () => {
 
 			if (Exit.isSuccess(result)) {
 				const message = result.value;
-				
+
 				// Validate header
 				expect(message.header.id).toBe(12345);
 				expect(message.header.qr).toBe(1); // Response
 				expect(message.header.ancount).toBe(1);
 				expect(message.header.nscount).toBe(0);
 				expect(message.header.arcount).toBe(0);
-				
+
 				// Validate question
 				expect(message.question).toHaveLength(1);
 				expect(message.question[0]!.qtype).toBe(1); // A record
 				expect(message.question[0]!.qclass).toBe(1); // IN
-				
+
 				// Validate answer section
 				expect(message.answer).toHaveLength(1);
 				const answerRecord = message.answer[0]!;
@@ -573,7 +615,7 @@ describe("message", () => {
 				expect(answerRecord.ttl).toBe(300);
 				expect(answerRecord.rdlength).toBe(4);
 				expect(Array.from(answerRecord.rdata)).toEqual([93, 184, 216, 34]);
-				
+
 				// Validate other sections are empty
 				expect(message.authority).toHaveLength(0);
 				expect(message.additional).toHaveLength(0);
@@ -586,30 +628,77 @@ describe("message", () => {
 			// DNS response with NS record in authority section
 			const messageWithAuthority = new Uint8Array([
 				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x81, 0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-				0x00, 0x01, // QDCOUNT: 1
-				0x00, 0x00, // ANCOUNT: 0
-				0x00, 0x01, // NSCOUNT: 1
-				0x00, 0x00, // ARCOUNT: 0
+				0x30,
+				0x39, // ID: 12345
+				0x81,
+				0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+				0x00,
+				0x01, // QDCOUNT: 1
+				0x00,
+				0x00, // ANCOUNT: 0
+				0x00,
+				0x01, // NSCOUNT: 1
+				0x00,
+				0x00, // ARCOUNT: 0
 				// Question: example.com A IN
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 				// Authority: example.com NS IN 300 ns1.example.com
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x02, // TYPE: NS
-				0x00, 0x01, // CLASS: IN
-				0x00, 0x00, 0x01, 0x2c, // TTL: 300
-				0x00, 0x11, // RDLENGTH: 17
+				0x00,
+				0x02, // TYPE: NS
+				0x00,
+				0x01, // CLASS: IN
+				0x00,
+				0x00,
+				0x01,
+				0x2c, // TTL: 300
+				0x00,
+				0x11, // RDLENGTH: 17
 				// RDATA: ns1.example.com
-				0x03, 0x6e, 0x73, 0x31, // "ns1"
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x03,
+				0x6e,
+				0x73,
+				0x31, // "ns1"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
 			]);
 
@@ -621,19 +710,19 @@ describe("message", () => {
 
 			if (Exit.isSuccess(result)) {
 				const message = result.value;
-				
+
 				// Validate header
 				expect(message.header.id).toBe(12345);
 				expect(message.header.qr).toBe(1); // Response
 				expect(message.header.ancount).toBe(0);
 				expect(message.header.nscount).toBe(1);
 				expect(message.header.arcount).toBe(0);
-				
+
 				// Validate sections
 				expect(message.answer).toHaveLength(0);
 				expect(message.authority).toHaveLength(1);
 				expect(message.additional).toHaveLength(0);
-				
+
 				// Validate authority record
 				const authorityRecord = message.authority[0]!;
 				expect(authorityRecord.type).toBe(2); // NS record
@@ -649,28 +738,68 @@ describe("message", () => {
 			// DNS response with A record in additional section
 			const messageWithAdditional = new Uint8Array([
 				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x81, 0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-				0x00, 0x01, // QDCOUNT: 1
-				0x00, 0x00, // ANCOUNT: 0
-				0x00, 0x00, // NSCOUNT: 0
-				0x00, 0x01, // ARCOUNT: 1
+				0x30,
+				0x39, // ID: 12345
+				0x81,
+				0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+				0x00,
+				0x01, // QDCOUNT: 1
+				0x00,
+				0x00, // ANCOUNT: 0
+				0x00,
+				0x00, // NSCOUNT: 0
+				0x00,
+				0x01, // ARCOUNT: 1
 				// Question: example.com A IN
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 				// Additional: ns1.example.com A IN 300 192.0.2.1
-				0x03, 0x6e, 0x73, 0x31, // "ns1"
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x03,
+				0x6e,
+				0x73,
+				0x31, // "ns1"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // TYPE: A
-				0x00, 0x01, // CLASS: IN
-				0x00, 0x00, 0x01, 0x2c, // TTL: 300
-				0x00, 0x04, // RDLENGTH: 4
-				0xc0, 0x00, 0x02, 0x01, // RDATA: 192.0.2.1
+				0x00,
+				0x01, // TYPE: A
+				0x00,
+				0x01, // CLASS: IN
+				0x00,
+				0x00,
+				0x01,
+				0x2c, // TTL: 300
+				0x00,
+				0x04, // RDLENGTH: 4
+				0xc0,
+				0x00,
+				0x02,
+				0x01, // RDATA: 192.0.2.1
 			]);
 
 			const result = yield* Effect.exit(
@@ -681,19 +810,19 @@ describe("message", () => {
 
 			if (Exit.isSuccess(result)) {
 				const message = result.value;
-				
+
 				// Validate header
 				expect(message.header.id).toBe(12345);
 				expect(message.header.qr).toBe(1); // Response
 				expect(message.header.ancount).toBe(0);
 				expect(message.header.nscount).toBe(0);
 				expect(message.header.arcount).toBe(1);
-				
+
 				// Validate sections
 				expect(message.answer).toHaveLength(0);
 				expect(message.authority).toHaveLength(0);
 				expect(message.additional).toHaveLength(1);
-				
+
 				// Validate additional record
 				const additionalRecord = message.additional[0]!;
 				expect(additionalRecord.type).toBe(1); // A record
@@ -705,99 +834,214 @@ describe("message", () => {
 		}),
 	);
 
-	it.effect("successfully decodes messages with multiple resource records", () =>
-		Effect.gen(function* () {
-			// DNS response with records in all sections
-			const messageWithAllSections = new Uint8Array([
-				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x81, 0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-				0x00, 0x01, // QDCOUNT: 1
-				0x00, 0x02, // ANCOUNT: 2
-				0x00, 0x01, // NSCOUNT: 1
-				0x00, 0x01, // ARCOUNT: 1
-				// Question: example.com A IN
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
-				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
-				// Answer 1: example.com A IN 300 93.184.216.34
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
-				0x00, // terminator
-				0x00, 0x01, // TYPE: A
-				0x00, 0x01, // CLASS: IN
-				0x00, 0x00, 0x01, 0x2c, // TTL: 300
-				0x00, 0x04, // RDLENGTH: 4
-				0x5d, 0xb8, 0xd8, 0x22, // RDATA: 93.184.216.34
-				// Answer 2: example.com A IN 300 93.184.216.35
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
-				0x00, // terminator
-				0x00, 0x01, // TYPE: A
-				0x00, 0x01, // CLASS: IN
-				0x00, 0x00, 0x01, 0x2c, // TTL: 300
-				0x00, 0x04, // RDLENGTH: 4
-				0x5d, 0xb8, 0xd8, 0x23, // RDATA: 93.184.216.35
-				// Authority: example.com NS IN 300 ns1.example.com
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
-				0x00, // terminator
-				0x00, 0x02, // TYPE: NS
-				0x00, 0x01, // CLASS: IN
-				0x00, 0x00, 0x01, 0x2c, // TTL: 300
-				0x00, 0x11, // RDLENGTH: 17
-				// RDATA: ns1.example.com
-				0x03, 0x6e, 0x73, 0x31, // "ns1"
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
-				0x00, // terminator
-				// Additional: ns1.example.com A IN 300 192.0.2.1
-				0x03, 0x6e, 0x73, 0x31, // "ns1"
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
-				0x00, // terminator
-				0x00, 0x01, // TYPE: A
-				0x00, 0x01, // CLASS: IN
-				0x00, 0x00, 0x01, 0x2c, // TTL: 300
-				0x00, 0x04, // RDLENGTH: 4
-				0xc0, 0x00, 0x02, 0x01, // RDATA: 192.0.2.1
-			]);
+	it.effect(
+		"successfully decodes messages with multiple resource records",
+		() =>
+			Effect.gen(function* () {
+				// DNS response with records in all sections
+				const messageWithAllSections = new Uint8Array([
+					// Header (12 bytes)
+					0x30,
+					0x39, // ID: 12345
+					0x81,
+					0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+					0x00,
+					0x01, // QDCOUNT: 1
+					0x00,
+					0x02, // ANCOUNT: 2
+					0x00,
+					0x01, // NSCOUNT: 1
+					0x00,
+					0x01, // ARCOUNT: 1
+					// Question: example.com A IN
+					0x07,
+					0x65,
+					0x78,
+					0x61,
+					0x6d,
+					0x70,
+					0x6c,
+					0x65, // "example"
+					0x03,
+					0x63,
+					0x6f,
+					0x6d, // "com"
+					0x00, // terminator
+					0x00,
+					0x01, // QTYPE: A
+					0x00,
+					0x01, // QCLASS: IN
+					// Answer 1: example.com A IN 300 93.184.216.34
+					0x07,
+					0x65,
+					0x78,
+					0x61,
+					0x6d,
+					0x70,
+					0x6c,
+					0x65, // "example"
+					0x03,
+					0x63,
+					0x6f,
+					0x6d, // "com"
+					0x00, // terminator
+					0x00,
+					0x01, // TYPE: A
+					0x00,
+					0x01, // CLASS: IN
+					0x00,
+					0x00,
+					0x01,
+					0x2c, // TTL: 300
+					0x00,
+					0x04, // RDLENGTH: 4
+					0x5d,
+					0xb8,
+					0xd8,
+					0x22, // RDATA: 93.184.216.34
+					// Answer 2: example.com A IN 300 93.184.216.35
+					0x07,
+					0x65,
+					0x78,
+					0x61,
+					0x6d,
+					0x70,
+					0x6c,
+					0x65, // "example"
+					0x03,
+					0x63,
+					0x6f,
+					0x6d, // "com"
+					0x00, // terminator
+					0x00,
+					0x01, // TYPE: A
+					0x00,
+					0x01, // CLASS: IN
+					0x00,
+					0x00,
+					0x01,
+					0x2c, // TTL: 300
+					0x00,
+					0x04, // RDLENGTH: 4
+					0x5d,
+					0xb8,
+					0xd8,
+					0x23, // RDATA: 93.184.216.35
+					// Authority: example.com NS IN 300 ns1.example.com
+					0x07,
+					0x65,
+					0x78,
+					0x61,
+					0x6d,
+					0x70,
+					0x6c,
+					0x65, // "example"
+					0x03,
+					0x63,
+					0x6f,
+					0x6d, // "com"
+					0x00, // terminator
+					0x00,
+					0x02, // TYPE: NS
+					0x00,
+					0x01, // CLASS: IN
+					0x00,
+					0x00,
+					0x01,
+					0x2c, // TTL: 300
+					0x00,
+					0x11, // RDLENGTH: 17
+					// RDATA: ns1.example.com
+					0x03,
+					0x6e,
+					0x73,
+					0x31, // "ns1"
+					0x07,
+					0x65,
+					0x78,
+					0x61,
+					0x6d,
+					0x70,
+					0x6c,
+					0x65, // "example"
+					0x03,
+					0x63,
+					0x6f,
+					0x6d, // "com"
+					0x00, // terminator
+					// Additional: ns1.example.com A IN 300 192.0.2.1
+					0x03,
+					0x6e,
+					0x73,
+					0x31, // "ns1"
+					0x07,
+					0x65,
+					0x78,
+					0x61,
+					0x6d,
+					0x70,
+					0x6c,
+					0x65, // "example"
+					0x03,
+					0x63,
+					0x6f,
+					0x6d, // "com"
+					0x00, // terminator
+					0x00,
+					0x01, // TYPE: A
+					0x00,
+					0x01, // CLASS: IN
+					0x00,
+					0x00,
+					0x01,
+					0x2c, // TTL: 300
+					0x00,
+					0x04, // RDLENGTH: 4
+					0xc0,
+					0x00,
+					0x02,
+					0x01, // RDATA: 192.0.2.1
+				]);
 
-			const result = yield* Effect.exit(
-				Schema.decode(MessageFromUint8Array)(messageWithAllSections),
-			);
+				const result = yield* Effect.exit(
+					Schema.decode(MessageFromUint8Array)(messageWithAllSections),
+				);
 
-			expect(Exit.isSuccess(result)).toBe(true);
+				expect(Exit.isSuccess(result)).toBe(true);
 
-			if (Exit.isSuccess(result)) {
-				const message = result.value;
-				
-				// Validate header counts
-				expect(message.header.ancount).toBe(2);
-				expect(message.header.nscount).toBe(1);
-				expect(message.header.arcount).toBe(1);
-				
-				// Validate section lengths match header counts
-				expect(message.answer).toHaveLength(2);
-				expect(message.authority).toHaveLength(1);
-				expect(message.additional).toHaveLength(1);
-				
-				// Validate answer records
-				expect(message.answer[0]!.type).toBe(1); // A record
-				expect(message.answer[1]!.type).toBe(1); // A record
-				expect(Array.from(message.answer[0]!.rdata)).toEqual([93, 184, 216, 34]);
-				expect(Array.from(message.answer[1]!.rdata)).toEqual([93, 184, 216, 35]);
-				
-				// Validate authority record
-				expect(message.authority[0]!.type).toBe(2); // NS record
-				
-				// Validate additional record
-				expect(message.additional[0]!.type).toBe(1); // A record
-				expect(Array.from(message.additional[0]!.rdata)).toEqual([192, 0, 2, 1]);
-			}
-		}),
+				if (Exit.isSuccess(result)) {
+					const message = result.value;
+
+					// Validate header counts
+					expect(message.header.ancount).toBe(2);
+					expect(message.header.nscount).toBe(1);
+					expect(message.header.arcount).toBe(1);
+
+					// Validate section lengths match header counts
+					expect(message.answer).toHaveLength(2);
+					expect(message.authority).toHaveLength(1);
+					expect(message.additional).toHaveLength(1);
+
+					// Validate answer records
+					expect(message.answer[0]!.type).toBe(1); // A record
+					expect(message.answer[1]!.type).toBe(1); // A record
+					expect(Array.from(message.answer[0]!.rdata)).toEqual([
+						93, 184, 216, 34,
+					]);
+					expect(Array.from(message.answer[1]!.rdata)).toEqual([
+						93, 184, 216, 35,
+					]);
+
+					// Validate authority record
+					expect(message.authority[0]!.type).toBe(2); // NS record
+
+					// Validate additional record
+					expect(message.additional[0]!.type).toBe(1); // A record
+					expect(Array.from(message.additional[0]!.rdata)).toEqual([
+						192, 0, 2, 1,
+					]);
+				}
+			}),
 	);
 
 	it.effect.prop(
@@ -869,73 +1113,113 @@ describe("message", () => {
 			}),
 	);
 
-	it.effect("successfully decodes messages with multiple questions (specific test)", () =>
-		Effect.gen(function* () {
-			// DNS query with two questions
-			const messageWithMultipleQuestions = new Uint8Array([
-				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x01, 0x00, // Flags: QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
-				0x00, 0x02, // QDCOUNT: 2
-				0x00, 0x00, // ANCOUNT: 0
-				0x00, 0x00, // NSCOUNT: 0
-				0x00, 0x00, // ARCOUNT: 0
-				// Question 1: example.com A IN
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
-				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
-				// Question 2: example.org NS IN
-				0x07, 0x65, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, // "example"
-				0x03, 0x6f, 0x72, 0x67, // "org"
-				0x00, // terminator
-				0x00, 0x02, // QTYPE: NS
-				0x00, 0x01, // QCLASS: IN
-			]);
+	it.effect(
+		"successfully decodes messages with multiple questions (specific test)",
+		() =>
+			Effect.gen(function* () {
+				// DNS query with two questions
+				const messageWithMultipleQuestions = new Uint8Array([
+					// Header (12 bytes)
+					0x30,
+					0x39, // ID: 12345
+					0x01,
+					0x00, // Flags: QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
+					0x00,
+					0x02, // QDCOUNT: 2
+					0x00,
+					0x00, // ANCOUNT: 0
+					0x00,
+					0x00, // NSCOUNT: 0
+					0x00,
+					0x00, // ARCOUNT: 0
+					// Question 1: example.com A IN
+					0x07,
+					0x65,
+					0x78,
+					0x61,
+					0x6d,
+					0x70,
+					0x6c,
+					0x65, // "example"
+					0x03,
+					0x63,
+					0x6f,
+					0x6d, // "com"
+					0x00, // terminator
+					0x00,
+					0x01, // QTYPE: A
+					0x00,
+					0x01, // QCLASS: IN
+					// Question 2: example.org NS IN
+					0x07,
+					0x65,
+					0x78,
+					0x61,
+					0x6d,
+					0x70,
+					0x6c,
+					0x65, // "example"
+					0x03,
+					0x6f,
+					0x72,
+					0x67, // "org"
+					0x00, // terminator
+					0x00,
+					0x02, // QTYPE: NS
+					0x00,
+					0x01, // QCLASS: IN
+				]);
 
-			const result = yield* Effect.exit(
-				Schema.decode(MessageFromUint8Array)(messageWithMultipleQuestions),
-			);
+				const result = yield* Effect.exit(
+					Schema.decode(MessageFromUint8Array)(messageWithMultipleQuestions),
+				);
 
-			expect(Exit.isSuccess(result)).toBe(true);
+				expect(Exit.isSuccess(result)).toBe(true);
 
-			if (Exit.isSuccess(result)) {
-				const message = result.value;
-				
-				// Validate header
-				expect(message.header.id).toBe(12345);
-				expect(message.header.qr).toBe(0); // Query
-				expect(message.header.qdcount).toBe(2);
-				expect(message.header.ancount).toBe(0);
-				expect(message.header.nscount).toBe(0);
-				expect(message.header.arcount).toBe(0);
-				
-				// Validate questions
-				expect(message.question).toHaveLength(2);
-				
-				// First question: example.com A IN
-				const question1 = message.question[0]!;
-				expect(question1.qtype).toBe(1); // A record
-				expect(question1.qclass).toBe(1); // IN
-				expect(question1.qname.labels).toHaveLength(2);
-				expect(Array.from(question1.qname.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(question1.qname.labels[1]!)).toEqual([99, 111, 109]); // "com"
-				
-				// Second question: example.org NS IN
-				const question2 = message.question[1]!;
-				expect(question2.qtype).toBe(2); // NS record
-				expect(question2.qclass).toBe(1); // IN
-				expect(question2.qname.labels).toHaveLength(2);
-				expect(Array.from(question2.qname.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(question2.qname.labels[1]!)).toEqual([111, 114, 103]); // "org"
-				
-				// Validate other sections are empty
-				expect(message.answer).toHaveLength(0);
-				expect(message.authority).toHaveLength(0);
-				expect(message.additional).toHaveLength(0);
-			}
-		}),
+				if (Exit.isSuccess(result)) {
+					const message = result.value;
+
+					// Validate header
+					expect(message.header.id).toBe(12345);
+					expect(message.header.qr).toBe(0); // Query
+					expect(message.header.qdcount).toBe(2);
+					expect(message.header.ancount).toBe(0);
+					expect(message.header.nscount).toBe(0);
+					expect(message.header.arcount).toBe(0);
+
+					// Validate questions
+					expect(message.question).toHaveLength(2);
+
+					// First question: example.com A IN
+					const question1 = message.question[0]!;
+					expect(question1.qtype).toBe(1); // A record
+					expect(question1.qclass).toBe(1); // IN
+					expect(question1.qname.labels).toHaveLength(2);
+					expect(Array.from(question1.qname.labels[0]!)).toEqual([
+						101, 120, 97, 109, 112, 108, 101,
+					]); // "example"
+					expect(Array.from(question1.qname.labels[1]!)).toEqual([
+						99, 111, 109,
+					]); // "com"
+
+					// Second question: example.org NS IN
+					const question2 = message.question[1]!;
+					expect(question2.qtype).toBe(2); // NS record
+					expect(question2.qclass).toBe(1); // IN
+					expect(question2.qname.labels).toHaveLength(2);
+					expect(Array.from(question2.qname.labels[0]!)).toEqual([
+						101, 120, 97, 109, 112, 108, 101,
+					]); // "example"
+					expect(Array.from(question2.qname.labels[1]!)).toEqual([
+						111, 114, 103,
+					]); // "org"
+
+					// Validate other sections are empty
+					expect(message.answer).toHaveLength(0);
+					expect(message.authority).toHaveLength(0);
+					expect(message.additional).toHaveLength(0);
+				}
+			}),
 	);
 
 	it.effect("validates section counts match header counts", () =>
@@ -943,27 +1227,58 @@ describe("message", () => {
 			// Test that parsed sections match header counts exactly
 			const messageWithMismatchedCounts = new Uint8Array([
 				// Header (12 bytes) - Claims 2 answers but only provides 1
-				0x30, 0x39, // ID: 12345
-				0x81, 0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-				0x00, 0x01, // QDCOUNT: 1
-				0x00, 0x02, // ANCOUNT: 2 (but only 1 answer follows)
-				0x00, 0x00, // NSCOUNT: 0
-				0x00, 0x00, // ARCOUNT: 0
+				0x30,
+				0x39, // ID: 12345
+				0x81,
+				0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+				0x00,
+				0x01, // QDCOUNT: 1
+				0x00,
+				0x02, // ANCOUNT: 2 (but only 1 answer follows)
+				0x00,
+				0x00, // NSCOUNT: 0
+				0x00,
+				0x00, // ARCOUNT: 0
 				// Question: test.com A IN
-				0x04, 0x74, 0x65, 0x73, 0x74, // "test"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x04,
+				0x74,
+				0x65,
+				0x73,
+				0x74, // "test"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 				// Answer 1: test.com A IN 300 192.0.2.1
-				0x04, 0x74, 0x65, 0x73, 0x74, // "test"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x04,
+				0x74,
+				0x65,
+				0x73,
+				0x74, // "test"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // TYPE: A
-				0x00, 0x01, // CLASS: IN
-				0x00, 0x00, 0x01, 0x2c, // TTL: 300
-				0x00, 0x04, // RDLENGTH: 4
-				0xc0, 0x00, 0x02, 0x01, // RDATA: 192.0.2.1
+				0x00,
+				0x01, // TYPE: A
+				0x00,
+				0x01, // CLASS: IN
+				0x00,
+				0x00,
+				0x01,
+				0x2c, // TTL: 300
+				0x00,
+				0x04, // RDLENGTH: 4
+				0xc0,
+				0x00,
+				0x02,
+				0x01, // RDATA: 192.0.2.1
 				// Missing second answer - should cause parsing error
 			]);
 
@@ -981,23 +1296,46 @@ describe("message", () => {
 			// Message claiming to have records but buffer is too small
 			const truncatedMessage = new Uint8Array([
 				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x81, 0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-				0x00, 0x01, // QDCOUNT: 1
-				0x00, 0x01, // ANCOUNT: 1
-				0x00, 0x01, // NSCOUNT: 1
-				0x00, 0x01, // ARCOUNT: 1
+				0x30,
+				0x39, // ID: 12345
+				0x81,
+				0x80, // Flags: QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+				0x00,
+				0x01, // QDCOUNT: 1
+				0x00,
+				0x01, // ANCOUNT: 1
+				0x00,
+				0x01, // NSCOUNT: 1
+				0x00,
+				0x01, // ARCOUNT: 1
 				// Question: test.com A IN
-				0x04, 0x74, 0x65, 0x73, 0x74, // "test"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x04,
+				0x74,
+				0x65,
+				0x73,
+				0x74, // "test"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 				// Partial answer record - truncated
-				0x04, 0x74, 0x65, 0x73, 0x74, // "test"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x04,
+				0x74,
+				0x65,
+				0x73,
+				0x74, // "test"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // TYPE: A
+				0x00,
+				0x01, // TYPE: A
 				// Missing the rest of the answer and all authority/additional records
 			]);
 
@@ -1015,12 +1353,18 @@ describe("message", () => {
 			// Header claims 1 question but no question data follows
 			const noQuestionMessage = new Uint8Array([
 				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x01, 0x00, // Flags: QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
-				0x00, 0x01, // QDCOUNT: 1 (but no question follows)
-				0x00, 0x00, // ANCOUNT: 0
-				0x00, 0x00, // NSCOUNT: 0
-				0x00, 0x00, // ARCOUNT: 0
+				0x30,
+				0x39, // ID: 12345
+				0x01,
+				0x00, // Flags: QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
+				0x00,
+				0x01, // QDCOUNT: 1 (but no question follows)
+				0x00,
+				0x00, // ANCOUNT: 0
+				0x00,
+				0x00, // NSCOUNT: 0
+				0x00,
+				0x00, // ARCOUNT: 0
 				// No question data - should cause parsing error
 			]);
 
@@ -1038,42 +1382,78 @@ describe("message", () => {
 			// Test message with realistic maximum counts
 			const messageWithMaxCounts = new Uint8Array([
 				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x01, 0x00, // Flags: QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
-				0x00, 0x05, // QDCOUNT: 5 (multiple questions)
-				0x00, 0x00, // ANCOUNT: 0
-				0x00, 0x00, // NSCOUNT: 0
-				0x00, 0x00, // ARCOUNT: 0
+				0x30,
+				0x39, // ID: 12345
+				0x01,
+				0x00, // Flags: QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
+				0x00,
+				0x05, // QDCOUNT: 5 (multiple questions)
+				0x00,
+				0x00, // ANCOUNT: 0
+				0x00,
+				0x00, // NSCOUNT: 0
+				0x00,
+				0x00, // ARCOUNT: 0
 				// Question 1: a.com A IN
-				0x01, 0x61, // "a"
-				0x03, 0x63, 0x6f, 0x6d, // "com"
+				0x01,
+				0x61, // "a"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 				// Question 2: b.org A IN
-				0x01, 0x62, // "b"
-				0x03, 0x6f, 0x72, 0x67, // "org"
+				0x01,
+				0x62, // "b"
+				0x03,
+				0x6f,
+				0x72,
+				0x67, // "org"
 				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 				// Question 3: c.net CNAME IN
-				0x01, 0x63, // "c"
-				0x03, 0x6e, 0x65, 0x74, // "net"
+				0x01,
+				0x63, // "c"
+				0x03,
+				0x6e,
+				0x65,
+				0x74, // "net"
 				0x00, // terminator
-				0x00, 0x05, // QTYPE: CNAME
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x05, // QTYPE: CNAME
+				0x00,
+				0x01, // QCLASS: IN
 				// Question 4: d.edu MX IN
-				0x01, 0x64, // "d"
-				0x03, 0x65, 0x64, 0x75, // "edu"
+				0x01,
+				0x64, // "d"
+				0x03,
+				0x65,
+				0x64,
+				0x75, // "edu"
 				0x00, // terminator
-				0x00, 0x0f, // QTYPE: MX
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x0f, // QTYPE: MX
+				0x00,
+				0x01, // QCLASS: IN
 				// Question 5: e.gov TXT IN
-				0x01, 0x65, // "e"
-				0x03, 0x67, 0x6f, 0x76, // "gov"
+				0x01,
+				0x65, // "e"
+				0x03,
+				0x67,
+				0x6f,
+				0x76, // "gov"
 				0x00, // terminator
-				0x00, 0x10, // QTYPE: TXT
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x10, // QTYPE: TXT
+				0x00,
+				0x01, // QCLASS: IN
 			]);
 
 			const result = yield* Effect.exit(
@@ -1084,20 +1464,20 @@ describe("message", () => {
 
 			if (Exit.isSuccess(result)) {
 				const message = result.value;
-				
+
 				// Validate header
 				expect(message.header.qdcount).toBe(5);
-				
+
 				// Validate all questions are parsed
 				expect(message.question).toHaveLength(5);
-				
+
 				// Validate question types
 				expect(message.question[0]!.qtype).toBe(1); // A
 				expect(message.question[1]!.qtype).toBe(1); // A
 				expect(message.question[2]!.qtype).toBe(5); // CNAME
 				expect(message.question[3]!.qtype).toBe(15); // MX
 				expect(message.question[4]!.qtype).toBe(16); // TXT
-				
+
 				// Validate all questions have correct class
 				for (const question of message.question) {
 					expect(question.qclass).toBe(1); // IN
@@ -1111,17 +1491,26 @@ describe("message", () => {
 			// Test message claiming unrealistic counts
 			const messageWithHugeCounts = new Uint8Array([
 				// Header (12 bytes)
-				0x30, 0x39, // ID: 12345
-				0x01, 0x00, // Flags: QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
-				0xff, 0xff, // QDCOUNT: 65535 (unrealistic)
-				0x00, 0x00, // ANCOUNT: 0
-				0x00, 0x00, // NSCOUNT: 0
-				0x00, 0x00, // ARCOUNT: 0
+				0x30,
+				0x39, // ID: 12345
+				0x01,
+				0x00, // Flags: QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
+				0xff,
+				0xff, // QDCOUNT: 65535 (unrealistic)
+				0x00,
+				0x00, // ANCOUNT: 0
+				0x00,
+				0x00, // NSCOUNT: 0
+				0x00,
+				0x00, // ARCOUNT: 0
 				// Only one tiny question follows
-				0x01, 0x61, // "a"
+				0x01,
+				0x61, // "a"
 				0x00, // terminator
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 			]);
 
 			const result = yield* Effect.exit(

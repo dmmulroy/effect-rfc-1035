@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Effect, Exit } from "effect";
 import {
-	decodeResourceRecord,
+	decodeResourceRecordFromUint8Array,
 	encodeResourceRecord,
 	RRTypeNameToRRType,
 } from "../src/resource-record";
@@ -13,7 +13,9 @@ describe("resource record", () => {
 		[arbitraryValidResourceRecordUint8Array],
 		([uint8Array]) =>
 			Effect.gen(function* () {
-				const result = yield* Effect.exit(decodeResourceRecord(uint8Array));
+				const result = yield* Effect.exit(
+					decodeResourceRecordFromUint8Array(uint8Array),
+				);
 				expect(Exit.isSuccess(result)).toBe(true);
 
 				if (Exit.isSuccess(result)) {
@@ -42,7 +44,7 @@ describe("resource record", () => {
 			};
 
 			const encoded = yield* encodeResourceRecord(record);
-			const decoded = yield* decodeResourceRecord(encoded);
+			const decoded = yield* decodeResourceRecordFromUint8Array(encoded);
 			expect(decoded.ttl).toBe(0);
 		}),
 	);
@@ -63,7 +65,7 @@ describe("resource record", () => {
 			};
 
 			const encoded = yield* encodeResourceRecord(validARecord);
-			const decoded = yield* decodeResourceRecord(encoded);
+			const decoded = yield* decodeResourceRecordFromUint8Array(encoded);
 			expect(decoded.rdlength).toBe(4);
 			expect(decoded.rdata.length).toBe(4);
 
@@ -95,7 +97,7 @@ describe("resource record", () => {
 			};
 
 			const encoded = yield* encodeResourceRecord(validMXRecord);
-			const decoded = yield* decodeResourceRecord(encoded);
+			const decoded = yield* decodeResourceRecordFromUint8Array(encoded);
 			expect(decoded.rdlength).toBe(8);
 			expect(decoded.rdata.length).toBe(8);
 		}),
@@ -127,7 +129,9 @@ describe("resource record", () => {
 				1, // RDATA
 			]);
 
-			const result = yield* Effect.exit(decodeResourceRecord(recordBytes));
+			const result = yield* Effect.exit(
+				decodeResourceRecordFromUint8Array(recordBytes),
+			);
 			// This should fail and correctly does - TTL validation works
 			expect(Exit.isFailure(result)).toBe(true);
 
@@ -156,7 +160,7 @@ describe("resource record", () => {
 			]);
 
 			const validResult = yield* Effect.exit(
-				decodeResourceRecord(validTtlBytes),
+				decodeResourceRecordFromUint8Array(validTtlBytes),
 			);
 			expect(Exit.isSuccess(validResult)).toBe(true);
 		}),
@@ -188,7 +192,9 @@ describe("resource record", () => {
 				1, // RDATA (4 bytes, not 5)
 			]);
 
-			const result = yield* Effect.exit(decodeResourceRecord(recordBytes));
+			const result = yield* Effect.exit(
+				decodeResourceRecordFromUint8Array(recordBytes),
+			);
 			expect(Exit.isFailure(result)).toBe(true);
 		}),
 	);
@@ -198,7 +204,7 @@ describe("resource record", () => {
 		[arbitraryValidResourceRecordUint8Array],
 		([uint8Array]) =>
 			Effect.gen(function* () {
-				const decoded = yield* decodeResourceRecord(uint8Array);
+				const decoded = yield* decodeResourceRecordFromUint8Array(uint8Array);
 				const encoded = yield* encodeResourceRecord(decoded);
 				expect(Array.from(encoded)).toEqual(Array.from(uint8Array));
 			}),
@@ -265,7 +271,7 @@ describe("resource record", () => {
 				};
 
 				const encoded = yield* encodeResourceRecord(record);
-				const decoded = yield* decodeResourceRecord(encoded);
+				const decoded = yield* decodeResourceRecordFromUint8Array(encoded);
 				expect(decoded.name.labels.length).toBe(3);
 
 				// Invalid Name should fail in ResourceRecord

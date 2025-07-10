@@ -5,7 +5,7 @@ import {
 	Name,
 	decodeNameFromUint8Array,
 	encodeNameFromUint8Array,
-} from "../src/labels";
+} from "../src/name";
 import {
 	arbitraryValidLabel,
 	arbitraryInvalidLabel,
@@ -17,7 +17,7 @@ import {
 	arbitraryInvalidNameWireFormat,
 } from "./arbitraries";
 
-describe("Label", () => {
+describe("Name", () => {
 	it.effect.prop(
 		"successfully validates valid RFC-compliant labels",
 		[arbitraryValidLabel],
@@ -201,7 +201,7 @@ describe("Label", () => {
 	);
 
 	it.effect.prop(
-		"roundtrip encoding fails for invalid labels",
+		"roundtrip encoding fails for invalid label",
 		[arbitraryInvalidLabel],
 		([label]) =>
 			Effect.gen(function* () {

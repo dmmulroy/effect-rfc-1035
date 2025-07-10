@@ -2,7 +2,7 @@
 export * from "./types";
 
 // Re-export Label and Name schemas
-export * from "./labels";
+export * from "./name";
 
 // Re-export Header
 export * from "./header";
@@ -15,4 +15,3 @@ export * from "./resource-record";
 
 // Re-export utilities
 export * from "./utils";
-

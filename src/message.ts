@@ -1,11 +1,11 @@
 import { Effect, ParseResult, Schema, Struct } from "effect";
-import { decodeHeader, Header, HeaderFromUint8Array } from "./header";
-import { decodeQuestion, Question, QuestionFromUint8Array } from "./question";
+import { decodeHeaderFromUint8Array, Header } from "./header";
+import { decodeQuestionFromDnsPacketCursor, Question } from "./question";
 import {
-	decodeResourceRecord,
+	decodeResourceRecordFromDnsPacketCursor,
 	ResourceRecord,
-	ResourceRecordFromUint8Array,
 } from "./resource-record";
+import { DnsPacketCursor } from "./types";
 
 export type Message = Readonly<{
 	header: Header;
@@ -21,9 +21,11 @@ export const Message = Schema.Struct({
 	answer: Schema.Array(ResourceRecord),
 	authority: Schema.Array(ResourceRecord),
 	additional: Schema.Array(ResourceRecord),
+}).annotations({
+	identifier: "Message",
+	description: "A DNS Packet Message",
 });
 
-const MAX_QUESTION_BYTE_LENGTH = 261;
 const HEADER_BYTE_LENGTH = 12;
 
 export const MessageFromUint8Array = Schema.transformOrFail(
@@ -33,85 +35,64 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 		strict: true,
 		decode(uint8Array) {
 			return Effect.gen(function* () {
+				const cursor = DnsPacketCursor.fromUint8Array(uint8Array);
+
 				// --- Header ---
-				let offset = 0;
 
 				const headerUint8Array = uint8Array.subarray(
-					offset,
+					cursor.offset,
 					HEADER_BYTE_LENGTH,
 				);
-				const header = yield* decodeHeader(headerUint8Array);
 
-				offset += HEADER_BYTE_LENGTH;
+				const header = yield* decodeHeaderFromUint8Array(headerUint8Array);
+
+				cursor.offset += HEADER_BYTE_LENGTH;
 
 				// --- Questions ---
 				let questions: Question[] = [];
 
 				for (let idx = 0; idx < header.qdcount; idx++) {
-					const questionUint8Array = uint8Array.subarray(
-						offset,
-						offset + MAX_QUESTION_BYTE_LENGTH,
-					);
-					const question = yield* decodeQuestion(questionUint8Array);
+					const { question, encodedByteLength } =
+						yield* decodeQuestionFromDnsPacketCursor(cursor);
+
 					questions.push(question);
 
-					// 4 bytes for qtype, qclass
-					offset += question.qname.encodedByteLength + 4;
+					cursor.offset += encodedByteLength;
 				}
 
 				// --- Answers ---
 				let answers: ResourceRecord[] = [];
 
 				for (let idx = 0; idx < header.ancount; idx++) {
-					const answerUint8Array = uint8Array.subarray(
-						offset,
-						offset + MAX_QUESTION_BYTE_LENGTH,
-					);
-					const answer = yield* decodeResourceRecord(answerUint8Array);
+					const { resourceRecord: answer, encodedByteLength } =
+						yield* decodeResourceRecordFromDnsPacketCursor(cursor);
 					answers.push(answer);
 
 					// 4 bytes for qtype, qclass
-					offset += answer.name.encodedByteLength + 10 + answer.rdlength;
+					cursor.offset += encodedByteLength;
 				}
 
 				// --- Nameserver Answers ---
 				let authorityRecords: ResourceRecord[] = [];
 
 				for (let idx = 0; idx < header.nscount; idx++) {
-					const authorityRecordUint8Array = uint8Array.subarray(
-						offset,
-						offset + MAX_QUESTION_BYTE_LENGTH,
-					);
-					const authorityRecord = yield* decodeResourceRecord(
-						authorityRecordUint8Array,
-					);
+					const { resourceRecord: authorityRecord, encodedByteLength } =
+						yield* decodeResourceRecordFromDnsPacketCursor(cursor);
 					authorityRecords.push(authorityRecord);
 
 					// 4 bytes for qtype, qclass
-					offset +=
-						authorityRecord.name.encodedByteLength +
-						10 +
-						authorityRecord.rdlength;
+					cursor.offset += encodedByteLength;
 				}
 
 				// --- Additional ---
 				let additionalRecords: ResourceRecord[] = [];
 
 				for (let idx = 0; idx < header.arcount; idx++) {
-					const additionalRecordUint8Array = uint8Array.subarray(
-						offset,
-						offset + MAX_QUESTION_BYTE_LENGTH,
-					);
-					const additionalRecord = yield* decodeResourceRecord(
-						additionalRecordUint8Array,
-					);
+					const { resourceRecord: additionalRecord, encodedByteLength } =
+						yield* decodeResourceRecordFromDnsPacketCursor(cursor);
 					additionalRecords.push(additionalRecord);
 
-					// 4 bytes for qtype, qclass
-					offset +=
-						additionalRecord.name.encodedByteLength +
-						10 +
-						additionalRecord.rdlength;
+					cursor.offset += encodedByteLength;
 				}
 
 				return {

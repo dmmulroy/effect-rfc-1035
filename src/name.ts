@@ -1,6 +1,7 @@
 import { Effect, Either, ParseResult, Schema, Struct } from "effect";
 import type { Mutable } from "effect/Types";
-import { getUint8, setUint8, uint8ArraySet } from "./utils";
+import { getUint16, getUint8, setUint8, uint8ArraySet } from "./utils";
+import { DnsPacketCursor } from "./types";
 
 /* 2.3.4. Size limits
  *
@@ -179,7 +180,6 @@ export const NameFromUint8Array = Schema.transformOrFail(
 
 					// null terminating byte
 					if (length === 0) {
-						offset++;
 						break;
 					}
 
@@ -275,5 +275,201 @@ export const NameFromUint8Array = Schema.transformOrFail(
 });
 
 export const decodeNameFromUint8Array = Schema.decode(NameFromUint8Array);
-
 export const encodeNameFromUint8Array = Schema.encode(NameFromUint8Array);
+
+const MAX_NAME_BYTE_LENGTH = 255;
+
+const NameFromDnsPacketCursor = Schema.transformOrFail(
+	DnsPacketCursor.schema,
+	Name,
+	{
+		strict: true,
+		decode(cursor, _, ast) {
+			return Effect.gen(function* () {
+				const uint8Array = cursor.uint8Array.subarray(
+					cursor.offset,
+					cursor.offset + MAX_NAME_BYTE_LENGTH,
+				);
+
+				if (uint8Array.length < 2) {
+					return yield* ParseResult.fail(
+						new ParseResult.Type(
+							ast,
+							uint8Array,
+							`NAME length must be at least 2 bytes or more, received ${uint8Array.byteLength}`,
+						),
+					);
+				}
+
+				const dataView = new DataView(
+					uint8Array.buffer,
+					uint8Array.byteOffset,
+					uint8Array.byteLength,
+				);
+
+				let labels: Mutable<Label>[] = [];
+				let offset = 0;
+				let bytesConsumed = 0;
+				let nameSize = 0;
+				let encounteredPointer = false;
+
+				while (true) {
+					const byteResult = getUint8(dataView, offset, ast);
+
+					if (Either.isLeft(byteResult)) {
+						return yield* ParseResult.fail(byteResult.left);
+					}
+
+					const byte = byteResult.right;
+
+					const isPointer = byteIsPointer(byte);
+
+					if (isPointer) {
+						if (encounteredPointer === true) {
+							return yield* ParseResult.fail(
+								new ParseResult.Type(
+									ast,
+									uint8Array,
+									`Encountered recursive pointer during NAME decompression`,
+								),
+							);
+						}
+
+						encounteredPointer = true;
+
+						const pointerAndOffsetResult = getUint16(dataView, offset, ast);
+
+						if (Either.isLeft(pointerAndOffsetResult)) {
+							return yield* ParseResult.fail(pointerAndOffsetResult.left);
+						}
+
+						offset = getOffset(pointerAndOffsetResult.right);
+
+						// Increment bytes consumed by the pointer + offset 16 bits (e.g. 2 bytes)
+						bytesConsumed += 2;
+						continue;
+					}
+
+					const length = byteResult.right;
+
+					// null terminating byte
+					if (length === 0) {
+						break;
+					}
+
+					if (offset + 1 + length > uint8Array.length) {
+						return yield* ParseResult.fail(
+							new ParseResult.Type(
+								ast,
+								uint8Array,
+								`NAME label overruns buffer at offset ${offset}`,
+							),
+						);
+					}
+
+					const label = yield* decodeLabel(
+						uint8Array.subarray(offset + 1, offset + 1 + length),
+					).pipe(Effect.mapError(Struct.get("issue")));
+
+					nameSize += label.byteLength;
+
+					if (nameSize > 255) {
+						return yield* ParseResult.fail(
+							new ParseResult.Type(
+								ast,
+								uint8Array,
+								`NAME exceeded maximum size of 255 bytes`,
+							),
+						);
+					}
+					labels.push(label);
+					offset += length + 1;
+
+					if (encounteredPointer === false) {
+						bytesConsumed = offset;
+					}
+				}
+
+				return {
+					labels,
+					encodedByteLength: bytesConsumed,
+				};
+			});
+		},
+		encode(name, _, ast) {
+			return ParseResult.fail(
+				new ParseResult.Type(ast, name, "encoding is not supported"),
+			);
+		},
+	},
+);
+
+export const decodeNameFromDnsPacketCursor = Schema.decode(
+	NameFromDnsPacketCursor,
+);
+
+// if (isPointer) {
+// 	const pointerOffset =
+// 		(dataView.getUint16(offset, false) << 0x14) >>> 0x14;
+//
+// 	let previousOffset = 0;
+//
+// 	const previousUint8Array = uint8Array.subarray(pointerOffset, offset);
+//
+// 	const previousDataView = new DataView(
+// 		previousUint8Array.buffer,
+// 		previousUint8Array.byteOffset,
+// 		previousUint8Array.byteLength,
+// 	);
+//
+// 	while (true) {
+// 		const previousLength = previousDataView.getUint8(offset);
+//
+// 		// found the null terminating byte
+// 		if (previousLength === 0) {
+// 			break;
+// 		}
+//
+// 		if (
+// 			previousOffset + 1 + previousLength >
+// 			previousUint8Array.length
+// 		) {
+// 			return ParseResult.fail(
+// 				new ParseResult.Type(
+// 					ast,
+// 					previousUint8Array,
+// 					`NAME label overruns buffer at offset ${previousOffset}`,
+// 				),
+// 			);
+// 		}
+//
+// 		const value = previousUint8Array.subarray(
+// 			previousOffset + 1,
+// 			previousOffset + 1 + previousLength,
+// 		);
+//
+// 		if (value.length > 63) {
+// 			return ParseResult.fail(
+// 				new ParseResult.Type(
+// 					ast,
+// 					previousOffset,
+// 					`NAME label must be 63 bytes or less, received ${value.length}`,
+// 				),
+// 			);
+// 		}
+//
+// 		name.push(value);
+// 		previousOffset += previousLength + 1;
+// 	}
+//
+// 	offset += 2;
+// 	break;
+// }
+
+function byteIsPointer(byte: number) {
+	return (byte & 0xc0) === 0xc0;
+}
+
+function getOffset(uint16: number) {
+	return uint16 & 0x3fff;
+}
