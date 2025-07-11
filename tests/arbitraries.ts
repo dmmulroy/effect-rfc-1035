@@ -527,19 +527,21 @@ export const arbitraryMultiQuestionDnsMessage = fc
 	})
 	.chain(({ header, questionCount }) => {
 		// Generate multiple questions
-		return fc.array(arbitraryValidDnsQuestion, { 
-			minLength: questionCount, 
-			maxLength: questionCount 
-		}).map(questions => {
-			const updatedHeader = {
-				...header,
-				qdcount: questionCount,
-				ancount: 0,
-				nscount: 0,
-				arcount: 0,
-			};
-			return { header: updatedHeader, question: questions };
-		});
+		return fc
+			.array(arbitraryValidDnsQuestion, {
+				minLength: questionCount,
+				maxLength: questionCount,
+			})
+			.map((questions) => {
+				const updatedHeader = {
+					...header,
+					qdcount: questionCount,
+					ancount: 0,
+					nscount: 0,
+					arcount: 0,
+				};
+				return { header: updatedHeader, question: questions };
+			});
 	});
 
 // Generate valid DNS message as Uint8Array
@@ -608,8 +610,8 @@ export const arbitraryValidDnsMessageUint8Array = arbitraryValidDnsMessage.map(
 );
 
 // Generate valid multi-question DNS message as Uint8Array
-export const arbitraryMultiQuestionDnsMessageUint8Array = arbitraryMultiQuestionDnsMessage.map(
-	(message) => {
+export const arbitraryMultiQuestionDnsMessageUint8Array =
+	arbitraryMultiQuestionDnsMessage.map((message) => {
 		// Generate header bytes
 		const headerBuffer = new ArrayBuffer(12);
 		const headerView = new DataView(headerBuffer);
@@ -669,7 +671,7 @@ export const arbitraryMultiQuestionDnsMessageUint8Array = arbitraryMultiQuestion
 		// Combine header and all questions
 		const messageBuffer = new Uint8Array(12 + totalQuestionLength);
 		messageBuffer.set(new Uint8Array(headerBuffer), 0);
-		
+
 		let offset = 12;
 		for (const questionBuffer of questionBuffers) {
 			messageBuffer.set(questionBuffer, offset);
@@ -681,19 +683,18 @@ export const arbitraryMultiQuestionDnsMessageUint8Array = arbitraryMultiQuestion
 			header: message.header,
 			question: message.question, // Return all questions
 		};
-	},
-);
+	});
 
 // Generate comprehensive QTYPE/QCLASS combinations beyond basic A records
 export const arbitraryComprehensiveQType = fc.constantFrom(
-	RRTypeNameToRRType.A,      // IPv4 address
-	RRTypeNameToRRType.NS,     // Name server
-	RRTypeNameToRRType.CNAME,  // Canonical name
-	RRTypeNameToRRType.SOA,    // Start of authority
-	RRTypeNameToRRType.PTR,    // Pointer
-	RRTypeNameToRRType.MX,     // Mail exchange
-	RRTypeNameToRRType.TXT,    // Text
-	RRTypeNameToRRType.HINFO,  // Host info
+	RRTypeNameToRRType.A, // IPv4 address
+	RRTypeNameToRRType.NS, // Name server
+	RRTypeNameToRRType.CNAME, // Canonical name
+	RRTypeNameToRRType.SOA, // Start of authority
+	RRTypeNameToRRType.PTR, // Pointer
+	RRTypeNameToRRType.MX, // Mail exchange
+	RRTypeNameToRRType.TXT, // Text
+	RRTypeNameToRRType.HINFO, // Host info
 );
 
 export const arbitraryComprehensiveQClass = fc.constantFrom(
@@ -705,29 +706,59 @@ export const arbitraryComprehensiveQClass = fc.constantFrom(
 // Generate specific RDATA for different record types
 export const arbitraryTypedRData = fc.oneof(
 	// A record - 4 bytes IPv4
-	fc.constant({ type: RRTypeNameToRRType.A, rdata: new Uint8Array([192, 168, 1, 1]) }),
+	fc.constant({
+		type: RRTypeNameToRRType.A,
+		rdata: new Uint8Array([192, 168, 1, 1]),
+	}),
 	// NS record - domain name (simplified as text)
-	fc.constant({ type: RRTypeNameToRRType.NS, rdata: new Uint8Array([3, 110, 115, 49, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]) }),
+	fc.constant({
+		type: RRTypeNameToRRType.NS,
+		rdata: new Uint8Array([
+			3, 110, 115, 49, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0,
+		]),
+	}),
 	// CNAME record - domain name
-	fc.constant({ type: RRTypeNameToRRType.CNAME, rdata: new Uint8Array([3, 119, 119, 119, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]) }),
+	fc.constant({
+		type: RRTypeNameToRRType.CNAME,
+		rdata: new Uint8Array([
+			3, 119, 119, 119, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0,
+		]),
+	}),
 	// MX record - preference + domain name
-	fc.constant({ type: RRTypeNameToRRType.MX, rdata: new Uint8Array([0, 10, 4, 109, 97, 105, 108, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]) }),
+	fc.constant({
+		type: RRTypeNameToRRType.MX,
+		rdata: new Uint8Array([
+			0, 10, 4, 109, 97, 105, 108, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99,
+			111, 109, 0,
+		]),
+	}),
 	// TXT record - text data
-	fc.constant({ type: RRTypeNameToRRType.TXT, rdata: new Uint8Array([11, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]) }),
+	fc.constant({
+		type: RRTypeNameToRRType.TXT,
+		rdata: new Uint8Array([
+			11, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100,
+		]),
+	}),
 	// PTR record - domain name
-	fc.constant({ type: RRTypeNameToRRType.PTR, rdata: new Uint8Array([7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]) }),
+	fc.constant({
+		type: RRTypeNameToRRType.PTR,
+		rdata: new Uint8Array([
+			7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0,
+		]),
+	}),
 );
 
 // Generate realistic resource records with proper RDATA
-export const arbitraryRealisticResourceRecord = arbitraryTypedRData.chain(({ type, rdata }) =>
-	fc.record({
-		name: arbitraryValidDomainName,
-		type: fc.constant(type),
-		class: arbitraryComprehensiveQClass,
-		ttl: arbitraryRealisticTtl,
-		rdlength: fc.constant(rdata.length),
-		rdata: fc.constant(rdata),
-	})
+export const arbitraryRealisticResourceRecord = arbitraryTypedRData.chain(
+	({ type, rdata }) =>
+		fc.record({
+			name: arbitraryValidDomainName,
+			type: fc.constant(type),
+			class: arbitraryComprehensiveQClass,
+			ttl: arbitraryRealisticTtl,
+			rdlength: fc.constant(rdata.length),
+			rdata: fc.constant(rdata),
+		}),
 );
 
 // Generate IDN/punycode domain names
@@ -745,7 +776,7 @@ export const arbitraryIdnDomainName = fc.oneof(
 	]),
 	// Maximum length punycode labels
 	fc.constant([
-		new Uint8Array(Array.from("xn--" + "a".repeat(59), c => c.charCodeAt(0))), // 63-char punycode label
+		new Uint8Array(Array.from("xn--" + "a".repeat(59), (c) => c.charCodeAt(0))), // 63-char punycode label
 		new Uint8Array([99, 111, 109]), // "com"
 	]),
 );
@@ -769,25 +800,29 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 			nscount: 2,
 			arcount: 2,
 		},
-		questions: [{
-			qname: [
-				new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
-				new Uint8Array([99, 111, 109]), // "com"
-			],
-			qtype: RRTypeNameToRRType.A,
-			qclass: 1,
-		}],
-		answers: [{
-			name: [
-				new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
-				new Uint8Array([99, 111, 109]), // "com"
-			],
-			type: RRTypeNameToRRType.A,
-			class: 1,
-			ttl: 3600,
-			rdlength: 4,
-			rdata: new Uint8Array([192, 168, 1, 1]),
-		}],
+		questions: [
+			{
+				qname: [
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				qtype: RRTypeNameToRRType.A,
+				qclass: 1,
+			},
+		],
+		answers: [
+			{
+				name: [
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				type: RRTypeNameToRRType.A,
+				class: 1,
+				ttl: 3600,
+				rdlength: 4,
+				rdata: new Uint8Array([192, 168, 1, 1]),
+			},
+		],
 		authority: [
 			{
 				name: [new Uint8Array([99, 111, 109])], // "com"
@@ -795,7 +830,10 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 				class: 1,
 				ttl: 86400,
 				rdlength: 17,
-				rdata: new Uint8Array([3, 110, 115, 49, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
+				rdata: new Uint8Array([
+					3, 110, 115, 49, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109,
+					0,
+				]),
 			},
 			{
 				name: [new Uint8Array([99, 111, 109])], // "com"
@@ -803,8 +841,11 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 				class: 1,
 				ttl: 86400,
 				rdlength: 17,
-				rdata: new Uint8Array([3, 110, 115, 50, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
-			}
+				rdata: new Uint8Array([
+					3, 110, 115, 50, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109,
+					0,
+				]),
+			},
 		],
 		additional: [
 			{
@@ -830,10 +871,10 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 				ttl: 3600,
 				rdlength: 4,
 				rdata: new Uint8Array([192, 168, 1, 11]),
-			}
+			},
 		],
 	}),
-	
+
 	// CNAME chain scenario
 	fc.constant({
 		header: {
@@ -851,15 +892,17 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 			nscount: 0,
 			arcount: 0,
 		},
-		questions: [{
-			qname: [
-				new Uint8Array([119, 119, 119]), // "www"
-				new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
-				new Uint8Array([99, 111, 109]), // "com"
-			],
-			qtype: RRTypeNameToRRType.A,
-			qclass: 1,
-		}],
+		questions: [
+			{
+				qname: [
+					new Uint8Array([119, 119, 119]), // "www"
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				qtype: RRTypeNameToRRType.A,
+				qclass: 1,
+			},
+		],
 		answers: [
 			{
 				name: [
@@ -871,7 +914,10 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 				class: 1,
 				ttl: 300,
 				rdlength: 17,
-				rdata: new Uint8Array([3, 119, 119, 119, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
+				rdata: new Uint8Array([
+					3, 119, 119, 119, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111,
+					109, 0,
+				]),
 			},
 			{
 				name: [
@@ -884,12 +930,12 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 				ttl: 3600,
 				rdlength: 4,
 				rdata: new Uint8Array([203, 0, 113, 1]),
-			}
+			},
 		],
 		authority: [],
 		additional: [],
 	}),
-	
+
 	// MX record with A records scenario
 	fc.constant({
 		header: {
@@ -907,14 +953,16 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 			nscount: 0,
 			arcount: 2,
 		},
-		questions: [{
-			qname: [
-				new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
-				new Uint8Array([99, 111, 109]), // "com"
-			],
-			qtype: RRTypeNameToRRType.MX,
-			qclass: 1,
-		}],
+		questions: [
+			{
+				qname: [
+					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+					new Uint8Array([99, 111, 109]), // "com"
+				],
+				qtype: RRTypeNameToRRType.MX,
+				qclass: 1,
+			},
+		],
 		answers: [
 			{
 				name: [
@@ -925,7 +973,10 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 				class: 1,
 				ttl: 3600,
 				rdlength: 20,
-				rdata: new Uint8Array([0, 10, 4, 109, 97, 105, 108, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
+				rdata: new Uint8Array([
+					0, 10, 4, 109, 97, 105, 108, 7, 101, 120, 97, 109, 112, 108, 101, 3,
+					99, 111, 109, 0,
+				]),
 			},
 			{
 				name: [
@@ -936,8 +987,11 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 				class: 1,
 				ttl: 3600,
 				rdlength: 21,
-				rdata: new Uint8Array([0, 20, 5, 109, 97, 105, 108, 50, 7, 101, 120, 97, 109, 112, 108, 101, 3, 99, 111, 109, 0]),
-			}
+				rdata: new Uint8Array([
+					0, 20, 5, 109, 97, 105, 108, 50, 7, 101, 120, 97, 109, 112, 108, 101,
+					3, 99, 111, 109, 0,
+				]),
+			},
 		],
 		authority: [],
 		additional: [
@@ -964,7 +1018,7 @@ export const arbitraryComplexMultiSectionMessage = fc.oneof(
 				ttl: 3600,
 				rdlength: 4,
 				rdata: new Uint8Array([192, 168, 1, 21]),
-			}
+			},
 		],
 	}),
 );
@@ -976,7 +1030,7 @@ export const arbitraryMalformedDnsMessage = fc.oneof(
 		description: fc.constant("Truncated header"),
 		data: fc.uint8Array({ minLength: 1, maxLength: 11 }), // Less than 12 bytes
 	}),
-	
+
 	// Invalid field combinations
 	fc.constant({
 		description: "Response with questions but no answers",
@@ -993,53 +1047,104 @@ export const arbitraryMalformedDnsMessage = fc.oneof(
 			return new Uint8Array(buffer);
 		})(),
 	}),
-	
+
 	// Malformed label encoding
 	fc.constant({
 		description: "Invalid label length pointer",
 		data: new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID
-			0x01, 0x00, // QR=0, OPCODE=0, AA=0, TC=0, RD=1
-			0x00, 0x01, // QDCOUNT=1
-			0x00, 0x00, // ANCOUNT=0
-			0x00, 0x00, // NSCOUNT=0
-			0x00, 0x00, // ARCOUNT=0
+			0x30,
+			0x39, // ID
+			0x01,
+			0x00, // QR=0, OPCODE=0, AA=0, TC=0, RD=1
+			0x00,
+			0x01, // QDCOUNT=1
+			0x00,
+			0x00, // ANCOUNT=0
+			0x00,
+			0x00, // NSCOUNT=0
+			0x00,
+			0x00, // ARCOUNT=0
 			// Question with invalid label
-			0xFF, // Invalid length (255 > 63)
-			0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example" (but length says 255)
+			0xff, // Invalid length (255 > 63)
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example" (but length says 255)
 			0x00, // Terminator
-			0x00, 0x01, // QTYPE=A
-			0x00, 0x01, // QCLASS=IN
+			0x00,
+			0x01, // QTYPE=A
+			0x00,
+			0x01, // QCLASS=IN
 		]),
 	}),
-	
+
 	// Out-of-bounds resource record data
 	fc.constant({
 		description: "RDLENGTH exceeds available data",
 		data: new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID
-			0x81, 0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1
-			0x00, 0x01, // QDCOUNT=1
-			0x00, 0x01, // ANCOUNT=1
-			0x00, 0x00, // NSCOUNT=0
-			0x00, 0x00, // ARCOUNT=0
+			0x30,
+			0x39, // ID
+			0x81,
+			0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1
+			0x00,
+			0x01, // QDCOUNT=1
+			0x00,
+			0x01, // ANCOUNT=1
+			0x00,
+			0x00, // NSCOUNT=0
+			0x00,
+			0x00, // ARCOUNT=0
 			// Question
-			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-			0x03, 0x63, 0x6F, 0x6D, // "com"
+			0x07,
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example"
+			0x03,
+			0x63,
+			0x6f,
+			0x6d, // "com"
 			0x00, // Terminator
-			0x00, 0x01, // QTYPE=A
-			0x00, 0x01, // QCLASS=IN
+			0x00,
+			0x01, // QTYPE=A
+			0x00,
+			0x01, // QCLASS=IN
 			// Answer with invalid RDLENGTH
-			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-			0x03, 0x63, 0x6F, 0x6D, // "com"
+			0x07,
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example"
+			0x03,
+			0x63,
+			0x6f,
+			0x6d, // "com"
 			0x00, // Terminator
-			0x00, 0x01, // TYPE=A
-			0x00, 0x01, // CLASS=IN
-			0x00, 0x00, 0x0E, 0x10, // TTL=3600
-			0x00, 0x10, // RDLENGTH=16 (but only 4 bytes follow)
-			0xC0, 0xA8, 0x01, 0x01, // RDATA (4 bytes, but RDLENGTH claims 16)
+			0x00,
+			0x01, // TYPE=A
+			0x00,
+			0x01, // CLASS=IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL=3600
+			0x00,
+			0x10, // RDLENGTH=16 (but only 4 bytes follow)
+			0xc0,
+			0xa8,
+			0x01,
+			0x01, // RDATA (4 bytes, but RDLENGTH claims 16)
 		]),
 	}),
 );
@@ -1052,30 +1157,44 @@ export const arbitraryBoundaryConditions = fc.oneof(
 		size: 512,
 		data: new Uint8Array(512).fill(0),
 	}),
-	
+
 	// Deeply nested domain names approaching 255-byte limit
 	fc.constant({
 		description: "Maximum domain name length",
 		domainName: Array(127).fill(new Uint8Array([1, 97])), // 127 labels of "a" = 254 bytes
 	}),
-	
+
 	// Resource records at maximum data length
 	fc.constant({
 		description: "Maximum RDLENGTH",
 		rdlength: 65535,
 		rdata: new Uint8Array(65535).fill(65), // Max possible RDATA
 	}),
-	
+
 	// Circular reference detection in pointer chains
 	fc.constant({
 		description: "Circular pointer reference",
 		data: new Uint8Array([
 			// Header
-			0x30, 0x39, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x30,
+			0x39,
+			0x01,
+			0x00,
+			0x00,
+			0x01,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
 			// Question with circular pointer
-			0xC0, 0x0C, // Pointer to offset 12 (points to itself)
-			0x00, 0x01, // QTYPE=A
-			0x00, 0x01, // QCLASS=IN
+			0xc0,
+			0x0c, // Pointer to offset 12 (points to itself)
+			0x00,
+			0x01, // QTYPE=A
+			0x00,
+			0x01, // QCLASS=IN
 		]),
 	}),
 );
@@ -1088,14 +1207,14 @@ export const arbitraryStressTestMessage = fc.oneof(
 		recordCount: fc.constant(100),
 		messageSize: fc.integer({ min: 5000, max: 10000 }),
 	}),
-	
+
 	// Deep pointer chain nesting
 	fc.record({
 		description: fc.constant("Deep pointer chain nesting"),
 		chainDepth: fc.integer({ min: 50, max: 100 }),
 		pointerCount: fc.integer({ min: 20, max: 50 }),
 	}),
-	
+
 	// Pathological input with maximum complexity
 	fc.record({
 		description: fc.constant("Maximum complexity message"),
@@ -1125,14 +1244,16 @@ export const arbitraryCommonDnsMessage = fc
 				nscount: 0,
 				arcount: 0,
 			},
-			question: [{
-				qname: [
-					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
-					new Uint8Array([99, 111, 109]), // "com"
-				],
-				qtype: RRTypeNameToRRType.A,
-				qclass: 1,
-			}],
+			question: [
+				{
+					qname: [
+						new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+						new Uint8Array([99, 111, 109]), // "com"
+					],
+					qtype: RRTypeNameToRRType.A,
+					qclass: 1,
+				},
+			],
 		}),
 		// A record query for localhost
 		fc.constant({
@@ -1151,11 +1272,13 @@ export const arbitraryCommonDnsMessage = fc
 				nscount: 0,
 				arcount: 0,
 			},
-			question: [{
-				qname: [new Uint8Array([108, 111, 99, 97, 108, 104, 111, 115, 116])], // "localhost"
-				qtype: RRTypeNameToRRType.A,
-				qclass: 1,
-			}],
+			question: [
+				{
+					qname: [new Uint8Array([108, 111, 99, 97, 108, 104, 111, 115, 116])], // "localhost"
+					qtype: RRTypeNameToRRType.A,
+					qclass: 1,
+				},
+			],
 		}),
 		// MX record query for mail.example.org
 		fc.constant({
@@ -1174,15 +1297,17 @@ export const arbitraryCommonDnsMessage = fc
 				nscount: 0,
 				arcount: 0,
 			},
-			question: [{
-				qname: [
-					new Uint8Array([109, 97, 105, 108]), // "mail"
-					new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
-					new Uint8Array([111, 114, 103]), // "org"
-				],
-				qtype: RRTypeNameToRRType.MX,
-				qclass: 1,
-			}],
+			question: [
+				{
+					qname: [
+						new Uint8Array([109, 97, 105, 108]), // "mail"
+						new Uint8Array([101, 120, 97, 109, 112, 108, 101]), // "example"
+						new Uint8Array([111, 114, 103]), // "org"
+					],
+					qtype: RRTypeNameToRRType.MX,
+					qclass: 1,
+				},
+			],
 		}),
 	)
 	.map((message) => {
@@ -1254,29 +1379,32 @@ export const arbitraryCountMismatchDnsMessage = fc
 		actualQuestionCount: fc.integer({ min: 0, max: 2 }),
 		claimedQuestionCount: fc.integer({ min: 1, max: 5 }),
 	})
-	.filter(({ actualQuestionCount, claimedQuestionCount }) => 
-		actualQuestionCount !== claimedQuestionCount
+	.filter(
+		({ actualQuestionCount, claimedQuestionCount }) =>
+			actualQuestionCount !== claimedQuestionCount,
 	)
 	.chain(({ header, actualQuestionCount, claimedQuestionCount }) => {
 		// Generate only actualQuestionCount questions but claim claimedQuestionCount
-		return fc.array(arbitraryValidDnsQuestion, { 
-			minLength: actualQuestionCount, 
-			maxLength: actualQuestionCount 
-		}).map(questions => {
-			const updatedHeader = {
-				...header,
-				qdcount: claimedQuestionCount, // Mismatch: claim more/fewer than actual
-				ancount: 0,
-				nscount: 0,
-				arcount: 0,
-			};
-			return { header: updatedHeader, question: questions };
-		});
+		return fc
+			.array(arbitraryValidDnsQuestion, {
+				minLength: actualQuestionCount,
+				maxLength: actualQuestionCount,
+			})
+			.map((questions) => {
+				const updatedHeader = {
+					...header,
+					qdcount: claimedQuestionCount, // Mismatch: claim more/fewer than actual
+					ancount: 0,
+					nscount: 0,
+					arcount: 0,
+				};
+				return { header: updatedHeader, question: questions };
+			});
 	});
 
 // Generate count mismatch message as Uint8Array for testing
-export const arbitraryCountMismatchDnsMessageUint8Array = arbitraryCountMismatchDnsMessage.map(
-	(message) => {
+export const arbitraryCountMismatchDnsMessageUint8Array =
+	arbitraryCountMismatchDnsMessage.map((message) => {
 		// Generate header bytes with mismatched count
 		const headerBuffer = new ArrayBuffer(12);
 		const headerView = new DataView(headerBuffer);
@@ -1336,7 +1464,7 @@ export const arbitraryCountMismatchDnsMessageUint8Array = arbitraryCountMismatch
 		// Combine header and actual questions
 		const messageBuffer = new Uint8Array(12 + totalQuestionLength);
 		messageBuffer.set(new Uint8Array(headerBuffer), 0);
-		
+
 		let offset = 12;
 		for (const questionBuffer of questionBuffers) {
 			messageBuffer.set(questionBuffer, offset);
@@ -1350,8 +1478,7 @@ export const arbitraryCountMismatchDnsMessageUint8Array = arbitraryCountMismatch
 			actualCount: message.question.length,
 			claimedCount: message.header.qdcount,
 		};
-	},
-);
+	});
 
 // === DNS MESSAGE COMPRESSION TEST UTILITIES ===
 
@@ -1363,13 +1490,16 @@ export const arbitraryCountMismatchDnsMessageUint8Array = arbitraryCountMismatch
  * Format: 11XXXXXXXXXXXXXX where X is 14-bit offset from start of message
  */
 function createCompressionPointer(offset: number): Uint8Array {
-	if (offset > 0x3FFF) { // 14-bit limit
-		throw new Error(`Compression pointer offset ${offset} exceeds 14-bit limit`);
+	if (offset > 0x3fff) {
+		// 14-bit limit
+		throw new Error(
+			`Compression pointer offset ${offset} exceeds 14-bit limit`,
+		);
 	}
-	const pointer = 0xC000 | offset; // Set first two bits to 11
+	const pointer = 0xc000 | offset; // Set first two bits to 11
 	return new Uint8Array([
-		(pointer >> 8) & 0xFF, // High byte
-		pointer & 0xFF          // Low byte
+		(pointer >> 8) & 0xff, // High byte
+		pointer & 0xff, // Low byte
 	]);
 }
 
@@ -1378,91 +1508,168 @@ function createCompressionPointer(offset: number): Uint8Array {
  * F.ISI.ARPA, FOO.F.ISI.ARPA, ARPA, root
  */
 export const arbitraryRfc1035CompressionExample = {
-	description: "RFC 1035 Section 4.1.4 compression example: F.ISI.ARPA, FOO.F.ISI.ARPA, ARPA, root",
+	description:
+		"RFC 1035 Section 4.1.4 compression example: F.ISI.ARPA, FOO.F.ISI.ARPA, ARPA, root",
 	messageBuffer: (() => {
 		// Create the message following RFC 1035 example exactly
 		const message = new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID: 12345
-			0x01, 0x00, // QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
-			0x00, 0x04, // QDCOUNT: 4 questions
-			0x00, 0x00, // ANCOUNT: 0
-			0x00, 0x00, // NSCOUNT: 0
-			0x00, 0x00, // ARCOUNT: 0
+			0x30,
+			0x39, // ID: 12345
+			0x01,
+			0x00, // QR=0, OPCODE=0, AA=0, TC=0, RD=1, RA=0, Z=0, RCODE=0
+			0x00,
+			0x04, // QDCOUNT: 4 questions
+			0x00,
+			0x00, // ANCOUNT: 0
+			0x00,
+			0x00, // NSCOUNT: 0
+			0x00,
+			0x00, // ARCOUNT: 0
 
 			// Question 1: F.ISI.ARPA (starts at offset 12, which is 20 in RFC example accounting for different header)
 			// Offset 12: F.ISI.ARPA
-			0x01, 0x46,                   // "F" (length 1, data F)
-			0x03, 0x49, 0x53, 0x49,      // "ISI" (length 3, data ISI)
-			0x04, 0x41, 0x52, 0x50, 0x41, // "ARPA" (length 4, data ARPA)
-			0x00,                         // terminator
-			0x00, 0x01,                   // QTYPE: A
-			0x00, 0x01,                   // QCLASS: IN
+			0x01,
+			0x46, // "F" (length 1, data F)
+			0x03,
+			0x49,
+			0x53,
+			0x49, // "ISI" (length 3, data ISI)
+			0x04,
+			0x41,
+			0x52,
+			0x50,
+			0x41, // "ARPA" (length 4, data ARPA)
+			0x00, // terminator
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Question 2: FOO.F.ISI.ARPA (starts at offset 32)
 			// Uses pointer to reference F.ISI.ARPA at offset 12
-			0x03, 0x46, 0x4F, 0x4F,      // "FOO" (length 3, data FOO)
+			0x03,
+			0x46,
+			0x4f,
+			0x4f, // "FOO" (length 3, data FOO)
 			...createCompressionPointer(12), // Pointer to F.ISI.ARPA at offset 12
-			0x00, 0x01,                   // QTYPE: A
-			0x00, 0x01,                   // QCLASS: IN
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Question 3: ARPA (starts at offset 44)
 			// Uses pointer to reference ARPA part of F.ISI.ARPA (offset 18)
 			...createCompressionPointer(18), // Pointer to ARPA at offset 18
-			0x00, 0x01,                   // QTYPE: A
-			0x00, 0x01,                   // QCLASS: IN
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Question 4: root domain (starts at offset 52)
-			0x00,                         // root domain (zero length)
-			0x00, 0x01,                   // QTYPE: A
-			0x00, 0x01,                   // QCLASS: IN
+			0x00, // root domain (zero length)
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 		]);
-		
+
 		return message;
 	})(),
 	expectedNames: [
-		{ labels: [new Uint8Array([70]), new Uint8Array([73, 83, 73]), new Uint8Array([65, 82, 80, 65])] }, // F.ISI.ARPA
-		{ labels: [new Uint8Array([70, 79, 79]), new Uint8Array([70]), new Uint8Array([73, 83, 73]), new Uint8Array([65, 82, 80, 65])] }, // FOO.F.ISI.ARPA
+		{
+			labels: [
+				new Uint8Array([70]),
+				new Uint8Array([73, 83, 73]),
+				new Uint8Array([65, 82, 80, 65]),
+			],
+		}, // F.ISI.ARPA
+		{
+			labels: [
+				new Uint8Array([70, 79, 79]),
+				new Uint8Array([70]),
+				new Uint8Array([73, 83, 73]),
+				new Uint8Array([65, 82, 80, 65]),
+			],
+		}, // FOO.F.ISI.ARPA
 		{ labels: [new Uint8Array([65, 82, 80, 65])] }, // ARPA
-		{ labels: [] } // root
-	]
+		{ labels: [] }, // root
+	],
 };
 
 /**
  * Generate a simple compressed message with one pointer
  */
 export const arbitrarySimpleCompressionMessage = {
-	description: "Simple compression: question and answer with same compressed name",
+	description:
+		"Simple compression: question and answer with same compressed name",
 	messageBuffer: (() => {
 		const message = new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID: 12345
-			0x81, 0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-			0x00, 0x01, // QDCOUNT: 1
-			0x00, 0x01, // ANCOUNT: 1
-			0x00, 0x00, // NSCOUNT: 0
-			0x00, 0x00, // ARCOUNT: 0
+			0x30,
+			0x39, // ID: 12345
+			0x81,
+			0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+			0x00,
+			0x01, // QDCOUNT: 1
+			0x00,
+			0x01, // ANCOUNT: 1
+			0x00,
+			0x00, // NSCOUNT: 0
+			0x00,
+			0x00, // ARCOUNT: 0
 
 			// Question: example.com (starts at offset 12)
-			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-			0x03, 0x63, 0x6F, 0x6D,                         // "com"
-			0x00,                                           // terminator
-			0x00, 0x01,                                     // QTYPE: A
-			0x00, 0x01,                                     // QCLASS: IN
+			0x07,
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example"
+			0x03,
+			0x63,
+			0x6f,
+			0x6d, // "com"
+			0x00, // terminator
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Answer: uses compression pointer to reference question name
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x01,                      // TYPE: A
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x04,                      // RDLENGTH: 4
-			0x5D, 0xB8, 0xD8, 0x22,         // RDATA: 93.184.216.34
+			0x00,
+			0x01, // TYPE: A
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x04, // RDLENGTH: 4
+			0x5d,
+			0xb8,
+			0xd8,
+			0x22, // RDATA: 93.184.216.34
 		]);
-		
+
 		return message;
 	})(),
-	expectedQuestionName: { labels: [new Uint8Array([101, 120, 97, 109, 112, 108, 101]), new Uint8Array([99, 111, 109])] },
-	expectedAnswerName: { labels: [new Uint8Array([101, 120, 97, 109, 112, 108, 101]), new Uint8Array([99, 111, 109])] }
+	expectedQuestionName: {
+		labels: [
+			new Uint8Array([101, 120, 97, 109, 112, 108, 101]),
+			new Uint8Array([99, 111, 109]),
+		],
+	},
+	expectedAnswerName: {
+		labels: [
+			new Uint8Array([101, 120, 97, 109, 112, 108, 101]),
+			new Uint8Array([99, 111, 109]),
+		],
+	},
 };
 
 /**
@@ -1473,52 +1680,104 @@ export const arbitraryMultiCompressionMessage = {
 	messageBuffer: (() => {
 		const message = new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID: 12345
-			0x81, 0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-			0x00, 0x01, // QDCOUNT: 1
-			0x00, 0x01, // ANCOUNT: 1
-			0x00, 0x01, // NSCOUNT: 1
-			0x00, 0x01, // ARCOUNT: 1
+			0x30,
+			0x39, // ID: 12345
+			0x81,
+			0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+			0x00,
+			0x01, // QDCOUNT: 1
+			0x00,
+			0x01, // ANCOUNT: 1
+			0x00,
+			0x01, // NSCOUNT: 1
+			0x00,
+			0x01, // ARCOUNT: 1
 
 			// Question: mail.example.com (starts at offset 12)
-			0x04, 0x6D, 0x61, 0x69, 0x6C,                   // "mail"
-			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-			0x03, 0x63, 0x6F, 0x6D,                         // "com"
-			0x00,                                           // terminator
-			0x00, 0x01,                                     // QTYPE: A
-			0x00, 0x01,                                     // QCLASS: IN
+			0x04,
+			0x6d,
+			0x61,
+			0x69,
+			0x6c, // "mail"
+			0x07,
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example"
+			0x03,
+			0x63,
+			0x6f,
+			0x6d, // "com"
+			0x00, // terminator
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Answer: mail.example.com A record (uses pointer)
 			...createCompressionPointer(12), // Pointer to mail.example.com at offset 12
-			0x00, 0x01,                      // TYPE: A
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x04,                      // RDLENGTH: 4
-			0xC0, 0xA8, 0x01, 0x0A,         // RDATA: 192.168.1.10
+			0x00,
+			0x01, // TYPE: A
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x04, // RDLENGTH: 4
+			0xc0,
+			0xa8,
+			0x01,
+			0x0a, // RDATA: 192.168.1.10
 
 			// Authority: example.com NS record (uses compression to reference example.com part)
 			...createCompressionPointer(17), // Pointer to example.com at offset 17
-			0x00, 0x02,                      // TYPE: NS
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x01, 0x51, 0x80,         // TTL: 86400
-			0x00, 0x11,                      // RDLENGTH: 17
+			0x00,
+			0x02, // TYPE: NS
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x01,
+			0x51,
+			0x80, // TTL: 86400
+			0x00,
+			0x11, // RDLENGTH: 17
 			// RDATA: ns1.example.com (ns1 + pointer to example.com)
-			0x03, 0x6E, 0x73, 0x31,         // "ns1"
+			0x03,
+			0x6e,
+			0x73,
+			0x31, // "ns1"
 			...createCompressionPointer(17), // Pointer to example.com at offset 17
-			0x00,                            // terminator
+			0x00, // terminator
 
 			// Additional: ns1.example.com A record (uses pointer)
-			0x03, 0x6E, 0x73, 0x31,         // "ns1"
+			0x03,
+			0x6e,
+			0x73,
+			0x31, // "ns1"
 			...createCompressionPointer(17), // Pointer to example.com at offset 17
-			0x00, 0x01,                      // TYPE: A
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x04,                      // RDLENGTH: 4
-			0xC0, 0xA8, 0x01, 0x0B,         // RDATA: 192.168.1.11
+			0x00,
+			0x01, // TYPE: A
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x04, // RDLENGTH: 4
+			0xc0,
+			0xa8,
+			0x01,
+			0x0b, // RDATA: 192.168.1.11
 		]);
-		
+
 		return message;
-	})()
+	})(),
 };
 
 /**
@@ -1530,14 +1789,27 @@ export const arbitraryCompressionErrorMessages = fc.oneof(
 		description: "Circular pointer reference",
 		messageBuffer: new Uint8Array([
 			// Header
-			0x30, 0x39, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x30,
+			0x39,
+			0x01,
+			0x00,
+			0x00,
+			0x01,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
 			// Question with circular pointer (points to itself)
 			...createCompressionPointer(12), // Points to itself at offset 12
-			0x00, 0x01, // QTYPE: A
-			0x00, 0x01, // QCLASS: IN
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 		]),
 		shouldFail: true,
-		expectedError: "circular pointer"
+		expectedError: "circular pointer",
 	}),
 
 	// Pointer beyond message boundary
@@ -1545,14 +1817,27 @@ export const arbitraryCompressionErrorMessages = fc.oneof(
 		description: "Pointer beyond message boundary",
 		messageBuffer: new Uint8Array([
 			// Header
-			0x30, 0x39, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x30,
+			0x39,
+			0x01,
+			0x00,
+			0x00,
+			0x01,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
+			0x00,
 			// Question with invalid pointer
 			...createCompressionPointer(100), // Points beyond message end
-			0x00, 0x01, // QTYPE: A
-			0x00, 0x01, // QCLASS: IN
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 		]),
 		shouldFail: true,
-		expectedError: "pointer beyond boundary"
+		expectedError: "pointer beyond boundary",
 	}),
 
 	// Nested pointer chain
@@ -1561,28 +1846,58 @@ export const arbitraryCompressionErrorMessages = fc.oneof(
 		messageBuffer: (() => {
 			const message = new Uint8Array([
 				// Header
-				0x30, 0x39, 0x01, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				
+				0x30,
+				0x39,
+				0x01,
+				0x00,
+				0x00,
+				0x03,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+
 				// Question 1: example.com (at offset 12)
-				0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-				0x03, 0x63, 0x6F, 0x6D,                         // "com"
-				0x00,                                           // terminator
-				0x00, 0x01, 0x00, 0x01,                         // QTYPE: A, QCLASS: IN
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
+				0x00, // terminator
+				0x00,
+				0x01,
+				0x00,
+				0x01, // QTYPE: A, QCLASS: IN
 
 				// Question 2: pointer to question 1 (at offset 28)
 				...createCompressionPointer(12), // Points to example.com
-				0x00, 0x01, 0x00, 0x01,          // QTYPE: A, QCLASS: IN
+				0x00,
+				0x01,
+				0x00,
+				0x01, // QTYPE: A, QCLASS: IN
 
 				// Question 3: pointer to question 2 which points to question 1 (at offset 34)
 				...createCompressionPointer(28), // Points to pointer at offset 28
-				0x00, 0x01, 0x00, 0x01,          // QTYPE: A, QCLASS: IN
+				0x00,
+				0x01,
+				0x00,
+				0x01, // QTYPE: A, QCLASS: IN
 			]);
-			
+
 			return message;
 		})(),
 		shouldFail: false,
-		expectedError: null
-	})
+		expectedError: null,
+	}),
 );
 
 /**
@@ -1593,79 +1908,150 @@ export const arbitraryTailCompressionMessage = {
 	messageBuffer: (() => {
 		const message = new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID: 12345
-			0x81, 0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
-			0x00, 0x02, // QDCOUNT: 2
-			0x00, 0x00, // ANCOUNT: 0
-			0x00, 0x00, // NSCOUNT: 0
-			0x00, 0x00, // ARCOUNT: 0
+			0x30,
+			0x39, // ID: 12345
+			0x81,
+			0x80, // QR=1, OPCODE=0, AA=0, TC=0, RD=1, RA=1, Z=0, RCODE=0
+			0x00,
+			0x02, // QDCOUNT: 2
+			0x00,
+			0x00, // ANCOUNT: 0
+			0x00,
+			0x00, // NSCOUNT: 0
+			0x00,
+			0x00, // ARCOUNT: 0
 
 			// Question 1: example.com (starts at offset 12)
-			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-			0x03, 0x63, 0x6F, 0x6D,                         // "com"
-			0x00,                                           // terminator
-			0x00, 0x01,                                     // QTYPE: A
-			0x00, 0x01,                                     // QCLASS: IN
+			0x07,
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example"
+			0x03,
+			0x63,
+			0x6f,
+			0x6d, // "com"
+			0x00, // terminator
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Question 2: www.example.com with tail compression (starts at offset 28)
-			0x03, 0x77, 0x77, 0x77,      // "www"
+			0x03,
+			0x77,
+			0x77,
+			0x77, // "www"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x01,                   // QTYPE: A
-			0x00, 0x01,                   // QCLASS: IN
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 		]);
-		
+
 		return message;
 	})(),
 	expectedNames: [
-		{ labels: [new Uint8Array([101, 120, 97, 109, 112, 108, 101]), new Uint8Array([99, 111, 109])] }, // example.com
-		{ labels: [new Uint8Array([119, 119, 119]), new Uint8Array([101, 120, 97, 109, 112, 108, 101]), new Uint8Array([99, 111, 109])] } // www.example.com
-	]
+		{
+			labels: [
+				new Uint8Array([101, 120, 97, 109, 112, 108, 101]),
+				new Uint8Array([99, 111, 109]),
+			],
+		}, // example.com
+		{
+			labels: [
+				new Uint8Array([119, 119, 119]),
+				new Uint8Array([101, 120, 97, 109, 112, 108, 101]),
+				new Uint8Array([99, 111, 109]),
+			],
+		}, // www.example.com
+	],
 };
 
 /**
  * Generate real-world DNS response with compressed CNAME chain
  */
 export const arbitraryCnameCompressionMessage = {
-	description: "CNAME chain with compression: www.example.com -> example.com -> A record",
+	description:
+		"CNAME chain with compression: www.example.com -> example.com -> A record",
 	messageBuffer: (() => {
 		const message = new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID: 12345
-			0x81, 0x80, // QR=1, OPCODE=0, AA=1, TC=0, RD=1, RA=1, Z=0, RCODE=0
-			0x00, 0x01, // QDCOUNT: 1
-			0x00, 0x02, // ANCOUNT: 2 (CNAME + A record)
-			0x00, 0x00, // NSCOUNT: 0
-			0x00, 0x00, // ARCOUNT: 0
+			0x30,
+			0x39, // ID: 12345
+			0x81,
+			0x80, // QR=1, OPCODE=0, AA=1, TC=0, RD=1, RA=1, Z=0, RCODE=0
+			0x00,
+			0x01, // QDCOUNT: 1
+			0x00,
+			0x02, // ANCOUNT: 2 (CNAME + A record)
+			0x00,
+			0x00, // NSCOUNT: 0
+			0x00,
+			0x00, // ARCOUNT: 0
 
 			// Question: www.example.com A IN (starts at offset 12)
-			0x03, 0x77, 0x77, 0x77,                         // "www"
-			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-			0x03, 0x63, 0x6F, 0x6D,                         // "com"
-			0x00,                                           // terminator
-			0x00, 0x01,                                     // QTYPE: A
-			0x00, 0x01,                                     // QCLASS: IN
+			0x03,
+			0x77,
+			0x77,
+			0x77, // "www"
+			0x07,
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example"
+			0x03,
+			0x63,
+			0x6f,
+			0x6d, // "com"
+			0x00, // terminator
+			0x00,
+			0x01, // QTYPE: A
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Answer 1: www.example.com CNAME example.com (uses compression)
 			...createCompressionPointer(12), // Pointer to www.example.com at offset 12
-			0x00, 0x05,                      // TYPE: CNAME
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x01, 0x2C,         // TTL: 300
-			0x00, 0x0E,                      // RDLENGTH: 14
+			0x00,
+			0x05, // TYPE: CNAME
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x01,
+			0x2c, // TTL: 300
+			0x00,
+			0x0e, // RDLENGTH: 14
 			// RDATA: example.com (compressed reference to suffix of question)
 			...createCompressionPointer(16), // Pointer to example.com at offset 16
-			0x00,                            // terminator
+			0x00, // terminator
 
 			// Answer 2: example.com A 93.184.216.34 (uses compression)
 			...createCompressionPointer(16), // Pointer to example.com at offset 16
-			0x00, 0x01,                      // TYPE: A
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x04,                      // RDLENGTH: 4
-			0x5D, 0xB8, 0xD8, 0x22,         // RDATA: 93.184.216.34
+			0x00,
+			0x01, // TYPE: A
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x04, // RDLENGTH: 4
+			0x5d,
+			0xb8,
+			0xd8,
+			0x22, // RDATA: 93.184.216.34
 		]);
-		
+
 		return message;
-	})()
+	})(),
 };
 
 /**
@@ -1676,63 +2062,123 @@ export const arbitraryNsCompressionMessage = {
 	messageBuffer: (() => {
 		const message = new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID: 12345
-			0x84, 0x00, // QR=1, OPCODE=0, AA=1, TC=0, RD=0, RA=0, Z=0, RCODE=0
-			0x00, 0x01, // QDCOUNT: 1
-			0x00, 0x00, // ANCOUNT: 0
-			0x00, 0x02, // NSCOUNT: 2 (two NS records)
-			0x00, 0x02, // ARCOUNT: 2 (glue records)
+			0x30,
+			0x39, // ID: 12345
+			0x84,
+			0x00, // QR=1, OPCODE=0, AA=1, TC=0, RD=0, RA=0, Z=0, RCODE=0
+			0x00,
+			0x01, // QDCOUNT: 1
+			0x00,
+			0x00, // ANCOUNT: 0
+			0x00,
+			0x02, // NSCOUNT: 2 (two NS records)
+			0x00,
+			0x02, // ARCOUNT: 2 (glue records)
 
 			// Question: example.com NS IN (starts at offset 12)
-			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-			0x03, 0x63, 0x6F, 0x6D,                         // "com"
-			0x00,                                           // terminator
-			0x00, 0x02,                                     // QTYPE: NS
-			0x00, 0x01,                                     // QCLASS: IN
+			0x07,
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example"
+			0x03,
+			0x63,
+			0x6f,
+			0x6d, // "com"
+			0x00, // terminator
+			0x00,
+			0x02, // QTYPE: NS
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Authority 1: example.com NS ns1.example.com (uses compression)
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x02,                      // TYPE: NS
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x01, 0x51, 0x80,         // TTL: 86400
-			0x00, 0x11,                      // RDLENGTH: 17
+			0x00,
+			0x02, // TYPE: NS
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x01,
+			0x51,
+			0x80, // TTL: 86400
+			0x00,
+			0x11, // RDLENGTH: 17
 			// RDATA: ns1.example.com
-			0x03, 0x6E, 0x73, 0x31,         // "ns1"
+			0x03,
+			0x6e,
+			0x73,
+			0x31, // "ns1"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00,                            // terminator
+			0x00, // terminator
 
 			// Authority 2: example.com NS ns2.example.com (uses compression)
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x02,                      // TYPE: NS
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x01, 0x51, 0x80,         // TTL: 86400
-			0x00, 0x11,                      // RDLENGTH: 17
+			0x00,
+			0x02, // TYPE: NS
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x01,
+			0x51,
+			0x80, // TTL: 86400
+			0x00,
+			0x11, // RDLENGTH: 17
 			// RDATA: ns2.example.com
-			0x03, 0x6E, 0x73, 0x32,         // "ns2"
+			0x03,
+			0x6e,
+			0x73,
+			0x32, // "ns2"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00,                            // terminator
+			0x00, // terminator
 
 			// Additional 1: ns1.example.com A 192.0.2.1 (glue record)
-			0x03, 0x6E, 0x73, 0x31,         // "ns1"
+			0x03,
+			0x6e,
+			0x73,
+			0x31, // "ns1"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x01,                      // TYPE: A
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x04,                      // RDLENGTH: 4
-			0xC0, 0x00, 0x02, 0x01,         // RDATA: 192.0.2.1
+			0x00,
+			0x01, // TYPE: A
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x04, // RDLENGTH: 4
+			0xc0,
+			0x00,
+			0x02,
+			0x01, // RDATA: 192.0.2.1
 
 			// Additional 2: ns2.example.com A 192.0.2.2 (glue record)
-			0x03, 0x6E, 0x73, 0x32,         // "ns2"
+			0x03,
+			0x6e,
+			0x73,
+			0x32, // "ns2"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x01,                      // TYPE: A
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x04,                      // RDLENGTH: 4
-			0xC0, 0x00, 0x02, 0x02,         // RDATA: 192.0.2.2
+			0x00,
+			0x01, // TYPE: A
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x04, // RDLENGTH: 4
+			0xc0,
+			0x00,
+			0x02,
+			0x02, // RDATA: 192.0.2.2
 		]);
-		
+
 		return message;
-	})()
+	})(),
 };
 
 /**
@@ -1743,262 +2189,336 @@ export const arbitraryMxCompressionMessage = {
 	messageBuffer: (() => {
 		const message = new Uint8Array([
 			// Header (12 bytes)
-			0x30, 0x39, // ID: 12345
-			0x81, 0x80, // QR=1, OPCODE=0, AA=1, TC=0, RD=1, RA=1, Z=0, RCODE=0
-			0x00, 0x01, // QDCOUNT: 1
-			0x00, 0x02, // ANCOUNT: 2 (two MX records)
-			0x00, 0x00, // NSCOUNT: 0
-			0x00, 0x02, // ARCOUNT: 2 (glue records)
+			0x30,
+			0x39, // ID: 12345
+			0x81,
+			0x80, // QR=1, OPCODE=0, AA=1, TC=0, RD=1, RA=1, Z=0, RCODE=0
+			0x00,
+			0x01, // QDCOUNT: 1
+			0x00,
+			0x02, // ANCOUNT: 2 (two MX records)
+			0x00,
+			0x00, // NSCOUNT: 0
+			0x00,
+			0x02, // ARCOUNT: 2 (glue records)
 
 			// Question: example.com MX IN (starts at offset 12)
-			0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-			0x03, 0x63, 0x6F, 0x6D,                         // "com"
-			0x00,                                           // terminator
-			0x00, 0x0F,                                     // QTYPE: MX
-			0x00, 0x01,                                     // QCLASS: IN
+			0x07,
+			0x65,
+			0x78,
+			0x61,
+			0x6d,
+			0x70,
+			0x6c,
+			0x65, // "example"
+			0x03,
+			0x63,
+			0x6f,
+			0x6d, // "com"
+			0x00, // terminator
+			0x00,
+			0x0f, // QTYPE: MX
+			0x00,
+			0x01, // QCLASS: IN
 
 			// Answer 1: example.com MX 10 mail1.example.com (uses compression)
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x0F,                      // TYPE: MX
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x14,                      // RDLENGTH: 20
+			0x00,
+			0x0f, // TYPE: MX
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x14, // RDLENGTH: 20
 			// RDATA: preference (10) + mail1.example.com
-			0x00, 0x0A,                      // Preference: 10
-			0x05, 0x6D, 0x61, 0x69, 0x6C, 0x31, // "mail1"
+			0x00,
+			0x0a, // Preference: 10
+			0x05,
+			0x6d,
+			0x61,
+			0x69,
+			0x6c,
+			0x31, // "mail1"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00,                            // terminator
+			0x00, // terminator
 
 			// Answer 2: example.com MX 20 mail2.example.com (uses compression)
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x0F,                      // TYPE: MX
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x14,                      // RDLENGTH: 20
+			0x00,
+			0x0f, // TYPE: MX
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x14, // RDLENGTH: 20
 			// RDATA: preference (20) + mail2.example.com
-			0x00, 0x14,                      // Preference: 20
-			0x05, 0x6D, 0x61, 0x69, 0x6C, 0x32, // "mail2"
+			0x00,
+			0x14, // Preference: 20
+			0x05,
+			0x6d,
+			0x61,
+			0x69,
+			0x6c,
+			0x32, // "mail2"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00,                            // terminator
+			0x00, // terminator
 
 			// Additional 1: mail1.example.com A 192.0.2.10 (glue record)
-			0x05, 0x6D, 0x61, 0x69, 0x6C, 0x31, // "mail1"
+			0x05,
+			0x6d,
+			0x61,
+			0x69,
+			0x6c,
+			0x31, // "mail1"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x01,                      // TYPE: A
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x04,                      // RDLENGTH: 4
-			0xC0, 0x00, 0x02, 0x0A,         // RDATA: 192.0.2.10
+			0x00,
+			0x01, // TYPE: A
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x04, // RDLENGTH: 4
+			0xc0,
+			0x00,
+			0x02,
+			0x0a, // RDATA: 192.0.2.10
 
 			// Additional 2: mail2.example.com A 192.0.2.11 (glue record)
-			0x05, 0x6D, 0x61, 0x69, 0x6C, 0x32, // "mail2"
+			0x05,
+			0x6d,
+			0x61,
+			0x69,
+			0x6c,
+			0x32, // "mail2"
 			...createCompressionPointer(12), // Pointer to example.com at offset 12
-			0x00, 0x01,                      // TYPE: A
-			0x00, 0x01,                      // CLASS: IN
-			0x00, 0x00, 0x0E, 0x10,         // TTL: 3600
-			0x00, 0x04,                      // RDLENGTH: 4
-			0xC0, 0x00, 0x02, 0x0B,         // RDATA: 192.0.2.11
+			0x00,
+			0x01, // TYPE: A
+			0x00,
+			0x01, // CLASS: IN
+			0x00,
+			0x00,
+			0x0e,
+			0x10, // TTL: 3600
+			0x00,
+			0x04, // RDLENGTH: 4
+			0xc0,
+			0x00,
+			0x02,
+			0x0b, // RDATA: 192.0.2.11
 		]);
-		
+
 		return message;
-	})()
+	})(),
 };
 
 // Property-based generator for arbitrary compressed DNS messages
-export const arbitraryCompressedDnsMessage = fc.record({
-	// Generate a base domain that can be referenced by compression pointers
-	baseDomain: fc.oneof(
-		fc.constant([
-			new Uint8Array([7, 101, 120, 97, 109, 112, 108, 101]), // "example"
-			new Uint8Array([3, 99, 111, 109]) // "com"
-		]),
-		fc.constant([
-			new Uint8Array([4, 116, 101, 115, 116]), // "test"
-			new Uint8Array([3, 111, 114, 103]) // "org"
-		]),
-		fc.constant([
-			new Uint8Array([6, 103, 111, 111, 103, 108, 101]), // "google"
-			new Uint8Array([3, 99, 111, 109]) // "com"
-		])
-	),
-	
-	// Generate subdomains that will use compression
-	compressedNames: fc.array(
-		fc.oneof(
-			fc.constant([new Uint8Array([3, 119, 119, 119])]), // "www"
-			fc.constant([new Uint8Array([4, 109, 97, 105, 108])]), // "mail"
-			fc.constant([new Uint8Array([3, 102, 116, 112])]), // "ftp"
-			fc.constant([new Uint8Array([3, 110, 115, 49])]), // "ns1"
-			fc.constant([new Uint8Array([3, 110, 115, 50])]) // "ns2"
+export const arbitraryCompressedDnsMessage = fc
+	.record({
+		// Generate a base domain that can be referenced by compression pointers
+		baseDomain: fc.oneof(
+			fc.constant([
+				new Uint8Array([7, 101, 120, 97, 109, 112, 108, 101]), // "example"
+				new Uint8Array([3, 99, 111, 109]), // "com"
+			]),
+			fc.constant([
+				new Uint8Array([4, 116, 101, 115, 116]), // "test"
+				new Uint8Array([3, 111, 114, 103]), // "org"
+			]),
+			fc.constant([
+				new Uint8Array([6, 103, 111, 111, 103, 108, 101]), // "google"
+				new Uint8Array([3, 99, 111, 109]), // "com"
+			]),
 		),
-		{ minLength: 1, maxLength: 3 }
-	),
-	
-	// Generate header with appropriate counts
-	header: fc.record({
-		id: fc.integer({ min: 0, max: 65535 }),
-		qr: fc.constantFrom(1), // Response messages for compression scenarios
-		opcode: fc.constantFrom(0),
-		aa: fc.constantFrom(0, 1),
-		tc: fc.constantFrom(0),
-		rd: fc.constantFrom(1),
-		ra: fc.constantFrom(1),
-		z: fc.constant(0),
-		rcode: fc.constantFrom(0),
-		qdcount: fc.constant(1),
-		ancount: fc.integer({ min: 1, max: 3 }),
-		nscount: fc.integer({ min: 0, max: 2 }),
-		arcount: fc.integer({ min: 0, max: 2 })
+
+		// Generate subdomains that will use compression
+		compressedNames: fc.array(
+			fc.oneof(
+				fc.constant([new Uint8Array([3, 119, 119, 119])]), // "www"
+				fc.constant([new Uint8Array([4, 109, 97, 105, 108])]), // "mail"
+				fc.constant([new Uint8Array([3, 102, 116, 112])]), // "ftp"
+				fc.constant([new Uint8Array([3, 110, 115, 49])]), // "ns1"
+				fc.constant([new Uint8Array([3, 110, 115, 50])]), // "ns2"
+			),
+			{ minLength: 1, maxLength: 3 },
+		),
+
+		// Generate header with appropriate counts
+		header: fc.record({
+			id: fc.integer({ min: 0, max: 65535 }),
+			qr: fc.constantFrom(1), // Response messages for compression scenarios
+			opcode: fc.constantFrom(0),
+			aa: fc.constantFrom(0, 1),
+			tc: fc.constantFrom(0),
+			rd: fc.constantFrom(1),
+			ra: fc.constantFrom(1),
+			z: fc.constant(0),
+			rcode: fc.constantFrom(0),
+			qdcount: fc.constant(1),
+			ancount: fc.integer({ min: 1, max: 3 }),
+			nscount: fc.integer({ min: 0, max: 2 }),
+			arcount: fc.integer({ min: 0, max: 2 }),
+		}),
 	})
-}).map(({ baseDomain, compressedNames, header }) => {
-	// Calculate base domain offset (after header + question)
-	const questionLength = baseDomain.reduce((sum, label) => sum + label.length + 1, 0) + 1 + 4; // +1 for terminator, +4 for qtype/qclass
-	const baseDomainOffset = 12 + questionLength;
-	
-	// Create message buffer with header
-	const messageBuffer = new Uint8Array(512); // Generous buffer size
-	const view = new DataView(messageBuffer.buffer);
-	
-	// Write header
-	view.setUint16(0, header.id, false);
-	let byte2 = 0;
-	byte2 |= (header.qr & 0x01) << 7;
-	byte2 |= (header.opcode & 0x0f) << 3;
-	byte2 |= (header.aa & 0x01) << 2;
-	byte2 |= (header.tc & 0x01) << 1;
-	byte2 |= header.rd & 0x01;
-	messageBuffer[2] = byte2;
-	
-	let byte3 = 0;
-	byte3 |= (header.ra & 0x01) << 7;
-	byte3 |= (header.z & 0x07) << 4;
-	byte3 |= header.rcode & 0x0f;
-	messageBuffer[3] = byte3;
-	
-	view.setUint16(4, header.qdcount, false);
-	view.setUint16(6, header.ancount, false);
-	view.setUint16(8, header.nscount, false);
-	view.setUint16(10, header.arcount, false);
-	
-	let offset = 12;
-	
-	// Write question section with base domain
-	for (const label of baseDomain) {
-		messageBuffer[offset++] = label.length;
-		messageBuffer.set(label.slice(1), offset); // Skip length byte from label
-		offset += label.length - 1;
-	}
-	messageBuffer[offset++] = 0; // Terminator
-	view.setUint16(offset, RRTypeNameToRRType.A, false); // QTYPE
-	offset += 2;
-	view.setUint16(offset, 1, false); // QCLASS
-	offset += 2;
-	
-	// Expected names for validation
-	const expectedQuestionName = baseDomain.map(label => label.slice(1)); // Remove length prefixes
-	const expectedCompressedNames: Uint8Array[][] = [];
-	
-	// Write answer records with compression
-	for (let i = 0; i < header.ancount; i++) {
-		const compressedName = compressedNames[i % compressedNames.length] || [new Uint8Array([3, 119, 119, 119])];
-		
-		// Write compressed name (subdomain + pointer to base domain)
-		for (const label of compressedName) {
+	.map(({ baseDomain, compressedNames, header }) => {
+		// Calculate base domain offset (after header + question)
+		const questionLength =
+			baseDomain.reduce((sum, label) => sum + label.length + 1, 0) + 1 + 4; // +1 for terminator, +4 for qtype/qclass
+		const baseDomainOffset = 12 + questionLength;
+
+		// Create message buffer with header
+		const messageBuffer = new Uint8Array(512); // Generous buffer size
+		const view = new DataView(messageBuffer.buffer);
+
+		// Write header
+		view.setUint16(0, header.id, false);
+		let byte2 = 0;
+		byte2 |= (header.qr & 0x01) << 7;
+		byte2 |= (header.opcode & 0x0f) << 3;
+		byte2 |= (header.aa & 0x01) << 2;
+		byte2 |= (header.tc & 0x01) << 1;
+		byte2 |= header.rd & 0x01;
+		messageBuffer[2] = byte2;
+
+		let byte3 = 0;
+		byte3 |= (header.ra & 0x01) << 7;
+		byte3 |= (header.z & 0x07) << 4;
+		byte3 |= header.rcode & 0x0f;
+		messageBuffer[3] = byte3;
+
+		view.setUint16(4, header.qdcount, false);
+		view.setUint16(6, header.ancount, false);
+		view.setUint16(8, header.nscount, false);
+		view.setUint16(10, header.arcount, false);
+
+		let offset = 12;
+
+		// Write question section with base domain
+		for (const label of baseDomain) {
 			messageBuffer[offset++] = label.length;
-			messageBuffer.set(label.slice(1), offset); // Skip length byte
+			messageBuffer.set(label.slice(1), offset); // Skip length byte from label
 			offset += label.length - 1;
 		}
-		
-		// Add compression pointer to base domain
-		const pointer = createCompressionPointer(baseDomainOffset);
-		messageBuffer.set(pointer, offset);
+		messageBuffer[offset++] = 0; // Terminator
+		view.setUint16(offset, RRTypeNameToRRType.A, false); // QTYPE
 		offset += 2;
-		
-		// Expected full name for this record
-		expectedCompressedNames.push([
-			...compressedName.map(label => label.slice(1)),
-			...expectedQuestionName
-		]);
-		
-		// Write record data
-		view.setUint16(offset, RRTypeNameToRRType.A, false); // TYPE
+		view.setUint16(offset, 1, false); // QCLASS
 		offset += 2;
-		view.setUint16(offset, 1, false); // CLASS
-		offset += 2;
-		view.setUint32(offset, 3600, false); // TTL
-		offset += 4;
-		view.setUint16(offset, 4, false); // RDLENGTH
-		offset += 2;
-		// Write IP address
-		messageBuffer[offset++] = 192;
-		messageBuffer[offset++] = 168;
-		messageBuffer[offset++] = 1;
-		messageBuffer[offset++] = i + 10; // Different IP for each record
-	}
-	
-	// Write authority records (if any) with compression
-	for (let i = 0; i < header.nscount; i++) {
-		// Use compression pointer for name
-		const pointer = createCompressionPointer(baseDomainOffset);
-		messageBuffer.set(pointer, offset);
-		offset += 2;
-		
-		// Write NS record data
-		view.setUint16(offset, RRTypeNameToRRType.NS, false); // TYPE
-		offset += 2;
-		view.setUint16(offset, 1, false); // CLASS
-		offset += 2;
-		view.setUint32(offset, 86400, false); // TTL
-		offset += 4;
-		
-		// NS name with compression
-		const nsName = [new Uint8Array([3, 110, 115, (49 + i)])]; // ns1, ns2, etc.
-		const nsDataOffset = offset + 2; // After RDLENGTH
-		view.setUint16(offset, nsName[0]!.length + 2, false); // RDLENGTH (label + pointer)
-		offset += 2;
-		
-		messageBuffer[offset++] = nsName[0]!.length;
-		messageBuffer.set(nsName[0]!.slice(1), offset);
-		offset += nsName[0]!.length - 1;
-		
-		const nsPointer = createCompressionPointer(baseDomainOffset);
-		messageBuffer.set(nsPointer, offset);
-		offset += 2;
-	}
-	
-	// Write additional records (if any) with compression
-	for (let i = 0; i < header.arcount; i++) {
-		const nsName = [new Uint8Array([3, 110, 115, (49 + i)])]; // ns1, ns2, etc.
-		
-		// Write name with compression
-		messageBuffer[offset++] = nsName[0]!.length;
-		messageBuffer.set(nsName[0]!.slice(1), offset);
-		offset += nsName[0]!.length - 1;
-		
-		const pointer = createCompressionPointer(baseDomainOffset);
-		messageBuffer.set(pointer, offset);
-		offset += 2;
-		
-		// Write A record for NS
-		view.setUint16(offset, RRTypeNameToRRType.A, false); // TYPE
-		offset += 2;
-		view.setUint16(offset, 1, false); // CLASS
-		offset += 2;
-		view.setUint32(offset, 3600, false); // TTL
-		offset += 4;
-		view.setUint16(offset, 4, false); // RDLENGTH
-		offset += 2;
-		// Write IP address
-		messageBuffer[offset++] = 192;
-		messageBuffer[offset++] = 168;
-		messageBuffer[offset++] = 2;
-		messageBuffer[offset++] = i + 10;
-	}
-	
-	return {
-		messageBuffer: messageBuffer.slice(0, offset),
-		expectedQuestionName,
-		expectedCompressedNames,
-		header
-	};
-});
+
+		// Expected names for validation
+		const expectedQuestionName = baseDomain.map((label) => label.slice(1)); // Remove length prefixes
+		const expectedCompressedNames: Uint8Array[][] = [];
+
+		// Write answer records with compression
+		for (let i = 0; i < header.ancount; i++) {
+			const compressedName = compressedNames[i % compressedNames.length] || [
+				new Uint8Array([3, 119, 119, 119]),
+			];
+
+			// Write compressed name (subdomain + pointer to base domain)
+			for (const label of compressedName) {
+				messageBuffer[offset++] = label.length;
+				messageBuffer.set(label.slice(1), offset); // Skip length byte
+				offset += label.length - 1;
+			}
+
+			// Add compression pointer to base domain
+			const pointer = createCompressionPointer(baseDomainOffset);
+			messageBuffer.set(pointer, offset);
+			offset += 2;
+
+			// Expected full name for this record
+			expectedCompressedNames.push([
+				...compressedName.map((label) => label.slice(1)),
+				...expectedQuestionName,
+			]);
+
+			// Write record data
+			view.setUint16(offset, RRTypeNameToRRType.A, false); // TYPE
+			offset += 2;
+			view.setUint16(offset, 1, false); // CLASS
+			offset += 2;
+			view.setUint32(offset, 3600, false); // TTL
+			offset += 4;
+			view.setUint16(offset, 4, false); // RDLENGTH
+			offset += 2;
+			// Write IP address
+			messageBuffer[offset++] = 192;
+			messageBuffer[offset++] = 168;
+			messageBuffer[offset++] = 1;
+			messageBuffer[offset++] = i + 10; // Different IP for each record
+		}
+
+		// Write authority records (if any) with compression
+		for (let i = 0; i < header.nscount; i++) {
+			// Use compression pointer for name
+			const pointer = createCompressionPointer(baseDomainOffset);
+			messageBuffer.set(pointer, offset);
+			offset += 2;
+
+			// Write NS record data
+			view.setUint16(offset, RRTypeNameToRRType.NS, false); // TYPE
+			offset += 2;
+			view.setUint16(offset, 1, false); // CLASS
+			offset += 2;
+			view.setUint32(offset, 86400, false); // TTL
+			offset += 4;
+
+			// NS name with compression
+			const nsName = [new Uint8Array([3, 110, 115, 49 + i])]; // ns1, ns2, etc.
+			view.setUint16(offset, nsName[0]!.length + 2, false); // RDLENGTH (label + pointer)
+			offset += 2;
+
+			messageBuffer[offset++] = nsName[0]!.length;
+			messageBuffer.set(nsName[0]!.slice(1), offset);
+			offset += nsName[0]!.length - 1;
+
+			const nsPointer = createCompressionPointer(baseDomainOffset);
+			messageBuffer.set(nsPointer, offset);
+			offset += 2;
+		}
+
+		// Write additional records (if any) with compression
+		for (let i = 0; i < header.arcount; i++) {
+			const nsName = [new Uint8Array([3, 110, 115, 49 + i])]; // ns1, ns2, etc.
+
+			// Write name with compression
+			messageBuffer[offset++] = nsName[0]!.length;
+			messageBuffer.set(nsName[0]!.slice(1), offset);
+			offset += nsName[0]!.length - 1;
+
+			const pointer = createCompressionPointer(baseDomainOffset);
+			messageBuffer.set(pointer, offset);
+			offset += 2;
+
+			// Write A record for NS
+			view.setUint16(offset, RRTypeNameToRRType.A, false); // TYPE
+			offset += 2;
+			view.setUint16(offset, 1, false); // CLASS
+			offset += 2;
+			view.setUint32(offset, 3600, false); // TTL
+			offset += 4;
+			view.setUint16(offset, 4, false); // RDLENGTH
+			offset += 2;
+			// Write IP address
+			messageBuffer[offset++] = 192;
+			messageBuffer[offset++] = 168;
+			messageBuffer[offset++] = 2;
+			messageBuffer[offset++] = i + 10;
+		}
+
+		return {
+			messageBuffer: messageBuffer.slice(0, offset),
+			expectedQuestionName,
+			expectedCompressedNames,
+			header,
+		};
+	});

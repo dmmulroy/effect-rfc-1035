@@ -1,5 +1,9 @@
 import { Effect, Either, ParseResult, Schema, Struct } from "effect";
-import { Name, decodeNameFromUint8Array } from "./name";
+import {
+	Name,
+	decodeNameFromDnsPacketCursor,
+	decodeNameFromUint8Array,
+} from "./name";
 import { DnsPacketCursor, Uint16, Uint31, isUint31 } from "./types";
 import { getUint16, getUint32 } from "./utils";
 
@@ -409,20 +413,119 @@ const ResourceRecordWithEncodedByteLengthFromDnsPacketCursor =
 		}),
 		{
 			strict: true,
-			decode(cursor) {
-				return decodeResourceRecordFromUint8Array(
-					cursor.uint8Array.subarray(cursor.offset),
-				).pipe(
-					Effect.map((resourceRecord) => ({
+			decode(cursor, _, ast) {
+				return Effect.gen(function* () {
+					const uint8Array = cursor.uint8Array.subarray(cursor.offset);
+
+					const dataView = new DataView(
+						uint8Array.buffer,
+						uint8Array.byteOffset,
+						uint8Array.byteLength,
+					);
+
+					const name = yield* decodeNameFromDnsPacketCursor(cursor).pipe(
+						Effect.mapError(Struct.get("issue")),
+					);
+
+					// Calculate offset manually since we know the name structure
+					let offset = 0;
+					for (let idx = 0; idx < name.labels.length; idx++) {
+						offset += 1 + (name.labels[idx]?.byteLength ?? 0);
+					}
+					offset++; // null terminator
+
+					const typeResult = getUint16(dataView, offset, ast);
+
+					if (Either.isLeft(typeResult)) {
+						return yield* ParseResult.fail(typeResult.left);
+					}
+
+					const type = typeResult.right;
+					offset += 2;
+
+					const resourceClassResult = getUint16(dataView, offset, ast);
+
+					if (Either.isLeft(resourceClassResult)) {
+						return yield* ParseResult.fail(resourceClassResult.left);
+					}
+
+					const resourceClass = resourceClassResult.right;
+
+					offset += 2;
+
+					const ttlResult = getUint32(dataView, offset, ast);
+
+					if (Either.isLeft(ttlResult)) {
+						return yield* ParseResult.fail(ttlResult.left);
+					}
+
+					const ttl = ttlResult.right;
+
+					offset += 4;
+
+					if (!isUint31(ttl)) {
+						return yield* ParseResult.fail(
+							new ParseResult.Type(
+								ast,
+								ttl,
+								`TTL must be a 31-bit unsigned integer, received '${ttl}'`,
+							),
+						);
+					}
+
+					const rdlengthResult = getUint16(dataView, offset, ast);
+
+					if (Either.isLeft(rdlengthResult)) {
+						return yield* ParseResult.fail(rdlengthResult.left);
+					}
+
+					const rdlength = rdlengthResult.right;
+
+					offset += 2;
+
+					if (type === RRTypeNameToRRType.A && rdlength !== 4) {
+						return yield* ParseResult.fail(
+							new ParseResult.Type(
+								ast,
+								uint8Array,
+								"When a ResourceRecord's TYPE is 1, or an A Record, the RDLENGTH must be " +
+									"4 bytes, representative of an IPv4 address",
+							),
+						);
+					}
+
+					const rdata: Uint8Array = uint8Array.subarray(
+						offset,
+						offset + rdlength,
+					);
+
+					if (rdata.byteLength !== rdlength) {
+						return yield* ParseResult.fail(
+							new ParseResult.Type(
+								ast,
+								uint8Array,
+								`RDATA length did not match RDLENGTH. Expected '${rdlength}, received '${rdata.byteLength}'`,
+							),
+						);
+					}
+
+					const resourceRecord = ResourceRecord.make({
+						name,
+						type,
+						class: resourceClass,
+						ttl,
+						rdlength,
+						rdata,
+					});
+
+					return {
 						resourceRecord,
-						// 10 bytes for type, class, ttl, rdlength
 						encodedByteLength:
 							resourceRecord.name.encodedByteLength +
 							10 +
 							resourceRecord.rdlength,
-					})),
-					Effect.mapError(Struct.get("issue")),
-				);
+					};
+				});
 			},
 			encode(resourceRecord, _, ast) {
 				return ParseResult.fail(

@@ -61,6 +61,7 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 					cursor.offset += encodedByteLength + 1;
 				}
 
+				console.log("HERE?");
 				// --- Answers ---
 				let answers: ResourceRecord[] = [];
 

@@ -300,8 +300,16 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 						),
 					);
 				}
+				console.log(
+					"name\n",
+					Array.from(uint8Array).map((byte) => byte.toString(2)),
+				);
 
-				const dataView = new DataView(
+				// The bug is that the dataView (and uint8Array var) is constrained to
+				// a view of the data/packet that starts at the answer, so when we go to
+				// jump back to the question NAME, we don't have that data in the uint8Array
+				// or dataView
+				let dataView = new DataView(
 					uint8Array.buffer,
 					uint8Array.byteOffset,
 					uint8Array.byteLength,
@@ -321,6 +329,9 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 					}
 
 					const byte = byteResult.right;
+					if (encounteredPointer) {
+						console.log({ byte });
+					}
 
 					const isPointer = byteIsPointer(byte);
 
@@ -347,6 +358,13 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 
 						// Increment bytes consumed by the pointer + offset 16 bits (e.g. 2 bytes)
 						bytesConsumed += 2;
+
+						// update the dataview to look further back in memory/the packet
+						dataView = new DataView(
+							cursor.uint8Array.buffer,
+							cursor.uint8Array.byteOffset,
+							cursor.uint8Array.byteLength,
+						);
 						continue;
 					}
 
@@ -357,7 +375,8 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 						break;
 					}
 
-					if (offset + 1 + length > uint8Array.length) {
+					// last thing we did was change uint8Array.byteLength to dataView.byteLength
+					if (offset + 1 + length > dataView.byteLength) {
 						return yield* ParseResult.fail(
 							new ParseResult.Type(
 								ast,

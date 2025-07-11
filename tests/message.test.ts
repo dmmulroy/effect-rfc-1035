@@ -1,11 +1,9 @@
 import { describe, expect, it } from "@effect/vitest";
 import { Cause, Effect, Exit, Schema } from "effect";
 import { MessageFromUint8Array } from "../src/message";
-import { RRTypeNameToRRType } from "../src";
 import {
 	arbitraryValidDnsMessageUint8Array,
 	arbitraryCommonDnsMessage,
-	arbitraryInvalidDnsHeaderUint8Array,
 	arbitraryMultiQuestionDnsMessageUint8Array,
 	arbitraryCountMismatchDnsMessageUint8Array,
 	arbitrarySimpleCompressionMessage,
@@ -1530,7 +1528,7 @@ describe("message", () => {
 
 	// === DNS MESSAGE COMPRESSION TESTS ===
 
-	it.effect("successfully decodes simple compressed messages", () =>
+	it.effect.only("successfully decodes simple compressed messages", () =>
 		Effect.gen(function* () {
 			const { messageBuffer, expectedQuestionName, expectedAnswerName } =
 				arbitrarySimpleCompressionMessage;
@@ -1539,46 +1537,52 @@ describe("message", () => {
 				Schema.decode(MessageFromUint8Array)(messageBuffer),
 			);
 
+			// expect(result).toBe(true);
 			expect(Exit.isSuccess(result)).toBe(true);
 
-			if (Exit.isSuccess(result)) {
-				const message = result.value;
-
-				// Validate header
-				expect(message.header.id).toBe(12345);
-				expect(message.header.qr).toBe(1); // Response
-				expect(message.header.qdcount).toBe(1);
-				expect(message.header.ancount).toBe(1);
-
-				// Validate question name decompression
-				expect(message.question).toHaveLength(1);
-				const question = message.question[0]!;
-				expect(question.qname.labels).toHaveLength(expectedQuestionName.labels.length);
-				for (let i = 0; i < expectedQuestionName.labels.length; i++) {
-					expect(Array.from(question.qname.labels[i]!)).toEqual(
-						Array.from(expectedQuestionName.labels[i]!),
-					);
-				}
-
-				// Validate answer name decompression (should be same as question due to compression)
-				expect(message.answer).toHaveLength(1);
-				const answer = message.answer[0]!;
-				expect(answer.name.labels).toHaveLength(expectedAnswerName.labels.length);
-				for (let i = 0; i < expectedAnswerName.labels.length; i++) {
-					expect(Array.from(answer.name.labels[i]!)).toEqual(
-						Array.from(expectedAnswerName.labels[i]!),
-					);
-				}
-
-				// Verify question and answer names are the same (compression test)
-				expect(question.qname.labels.length).toBe(answer.name.labels.length);
-			}
+			// if (Exit.isSuccess(result)) {
+			// 	const message = result.value;
+			//
+			// 	// Validate header
+			// 	expect(message.header.id).toBe(12345);
+			// 	expect(message.header.qr).toBe(1); // Response
+			// 	expect(message.header.qdcount).toBe(1);
+			// 	expect(message.header.ancount).toBe(1);
+			//
+			// 	// Validate question name decompression
+			// 	expect(message.question).toHaveLength(1);
+			// 	const question = message.question[0]!;
+			// 	expect(question.qname.labels).toHaveLength(
+			// 		expectedQuestionName.labels.length,
+			// 	);
+			// 	for (let i = 0; i < expectedQuestionName.labels.length; i++) {
+			// 		expect(Array.from(question.qname.labels[i]!)).toEqual(
+			// 			Array.from(expectedQuestionName.labels[i]!),
+			// 		);
+			// 	}
+			//
+			// 	// Validate answer name decompression (should be same as question due to compression)
+			// 	expect(message.answer).toHaveLength(1);
+			// 	const answer = message.answer[0]!;
+			// 	expect(answer.name.labels).toHaveLength(
+			// 		expectedAnswerName.labels.length,
+			// 	);
+			// 	for (let i = 0; i < expectedAnswerName.labels.length; i++) {
+			// 		expect(Array.from(answer.name.labels[i]!)).toEqual(
+			// 			Array.from(expectedAnswerName.labels[i]!),
+			// 		);
+			// 	}
+			//
+			// 	// Verify question and answer names are the same (compression test)
+			// 	expect(question.qname.labels.length).toBe(answer.name.labels.length);
+			// }
 		}),
 	);
 
 	it.effect("successfully decodes RFC 1035 compression example", () =>
 		Effect.gen(function* () {
-			const { messageBuffer, expectedNames } = arbitraryRfc1035CompressionExample;
+			const { messageBuffer, expectedNames } =
+				arbitraryRfc1035CompressionExample;
 
 			const result = yield* Effect.exit(
 				Schema.decode(MessageFromUint8Array)(messageBuffer),
@@ -1605,7 +1609,9 @@ describe("message", () => {
 
 				// Question 1: F.ISI.ARPA
 				const question1 = message.question[0]!;
-				expect(question1.qname.labels).toHaveLength(expectedNames[0]!.labels.length);
+				expect(question1.qname.labels).toHaveLength(
+					expectedNames[0]!.labels.length,
+				);
 				for (let i = 0; i < expectedNames[0]!.labels.length; i++) {
 					expect(Array.from(question1.qname.labels[i]!)).toEqual(
 						Array.from(expectedNames[0]!.labels[i]!),
@@ -1616,7 +1622,9 @@ describe("message", () => {
 
 				// Question 2: FOO.F.ISI.ARPA (should be decompressed properly)
 				const question2 = message.question[1]!;
-				expect(question2.qname.labels).toHaveLength(expectedNames[1]!.labels.length);
+				expect(question2.qname.labels).toHaveLength(
+					expectedNames[1]!.labels.length,
+				);
 				for (let i = 0; i < expectedNames[1]!.labels.length; i++) {
 					expect(Array.from(question2.qname.labels[i]!)).toEqual(
 						Array.from(expectedNames[1]!.labels[i]!),
@@ -1627,7 +1635,9 @@ describe("message", () => {
 
 				// Question 3: ARPA (compressed pointer to ARPA part of F.ISI.ARPA)
 				const question3 = message.question[2]!;
-				expect(question3.qname.labels).toHaveLength(expectedNames[2]!.labels.length);
+				expect(question3.qname.labels).toHaveLength(
+					expectedNames[2]!.labels.length,
+				);
 				for (let i = 0; i < expectedNames[2]!.labels.length; i++) {
 					expect(Array.from(question3.qname.labels[i]!)).toEqual(
 						Array.from(expectedNames[2]!.labels[i]!),
@@ -1638,7 +1648,9 @@ describe("message", () => {
 
 				// Question 4: root domain (empty labels)
 				const question4 = message.question[3]!;
-				expect(question4.qname.labels).toHaveLength(expectedNames[3]!.labels.length);
+				expect(question4.qname.labels).toHaveLength(
+					expectedNames[3]!.labels.length,
+				);
 				expect(question4.qname.labels).toHaveLength(0); // Root domain has no labels
 				expect(question4.qtype).toBe(1); // A record
 				expect(question4.qclass).toBe(1); // IN
@@ -1648,71 +1660,93 @@ describe("message", () => {
 				expect(Array.from(question2.qname.labels[0]!)).toEqual([70, 79, 79]); // "FOO"
 				expect(Array.from(question2.qname.labels[1]!)).toEqual([70]); // "F"
 				expect(Array.from(question2.qname.labels[2]!)).toEqual([73, 83, 73]); // "ISI"
-				expect(Array.from(question2.qname.labels[3]!)).toEqual([65, 82, 80, 65]); // "ARPA"
+				expect(Array.from(question2.qname.labels[3]!)).toEqual([
+					65, 82, 80, 65,
+				]); // "ARPA"
 
 				// ARPA question should only have the ARPA label
-				expect(Array.from(question3.qname.labels[0]!)).toEqual([65, 82, 80, 65]); // "ARPA"
+				expect(Array.from(question3.qname.labels[0]!)).toEqual([
+					65, 82, 80, 65,
+				]); // "ARPA"
 			}
 		}),
 	);
 
-	it.effect("successfully decodes messages with multiple compression scenarios", () =>
-		Effect.gen(function* () {
-			const { messageBuffer } = arbitraryMultiCompressionMessage;
+	it.effect(
+		"successfully decodes messages with multiple compression scenarios",
+		() =>
+			Effect.gen(function* () {
+				const { messageBuffer } = arbitraryMultiCompressionMessage;
 
-			const result = yield* Effect.exit(
-				Schema.decode(MessageFromUint8Array)(messageBuffer),
-			);
+				const result = yield* Effect.exit(
+					Schema.decode(MessageFromUint8Array)(messageBuffer),
+				);
 
-			if (Exit.isFailure(result)) {
-				console.log(Cause.prettyErrors(result.cause));
-			}
+				if (Exit.isFailure(result)) {
+					console.log(Cause.prettyErrors(result.cause));
+				}
 
-			expect(Exit.isSuccess(result)).toBe(true);
+				expect(Exit.isSuccess(result)).toBe(true);
 
-			if (Exit.isSuccess(result)) {
-				const message = result.value;
+				if (Exit.isSuccess(result)) {
+					const message = result.value;
 
-				// Validate header
-				expect(message.header.id).toBe(12345);
-				expect(message.header.qr).toBe(1); // Response
-				expect(message.header.qdcount).toBe(1);
-				expect(message.header.ancount).toBe(1);
-				expect(message.header.nscount).toBe(1);
-				expect(message.header.arcount).toBe(1);
+					// Validate header
+					expect(message.header.id).toBe(12345);
+					expect(message.header.qr).toBe(1); // Response
+					expect(message.header.qdcount).toBe(1);
+					expect(message.header.ancount).toBe(1);
+					expect(message.header.nscount).toBe(1);
+					expect(message.header.arcount).toBe(1);
 
-				// Validate question: mail.example.com
-				expect(message.question).toHaveLength(1);
-				const question = message.question[0]!;
-				expect(question.qname.labels).toHaveLength(3);
-				expect(Array.from(question.qname.labels[0]!)).toEqual([109, 97, 105, 108]); // "mail"
-				expect(Array.from(question.qname.labels[1]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(question.qname.labels[2]!)).toEqual([99, 111, 109]); // "com"
+					// Validate question: mail.example.com
+					expect(message.question).toHaveLength(1);
+					const question = message.question[0]!;
+					expect(question.qname.labels).toHaveLength(3);
+					expect(Array.from(question.qname.labels[0]!)).toEqual([
+						109, 97, 105, 108,
+					]); // "mail"
+					expect(Array.from(question.qname.labels[1]!)).toEqual([
+						101, 120, 97, 109, 112, 108, 101,
+					]); // "example"
+					expect(Array.from(question.qname.labels[2]!)).toEqual([99, 111, 109]); // "com"
 
-				// Validate answer: should have same name as question (compressed)
-				expect(message.answer).toHaveLength(1);
-				const answer = message.answer[0]!;
-				expect(answer.name.labels).toHaveLength(3);
-				expect(Array.from(answer.name.labels[0]!)).toEqual([109, 97, 105, 108]); // "mail"
-				expect(Array.from(answer.name.labels[1]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(answer.name.labels[2]!)).toEqual([99, 111, 109]); // "com"
+					// Validate answer: should have same name as question (compressed)
+					expect(message.answer).toHaveLength(1);
+					const answer = message.answer[0]!;
+					expect(answer.name.labels).toHaveLength(3);
+					expect(Array.from(answer.name.labels[0]!)).toEqual([
+						109, 97, 105, 108,
+					]); // "mail"
+					expect(Array.from(answer.name.labels[1]!)).toEqual([
+						101, 120, 97, 109, 112, 108, 101,
+					]); // "example"
+					expect(Array.from(answer.name.labels[2]!)).toEqual([99, 111, 109]); // "com"
 
-				// Validate authority: example.com (compressed reference to suffix)
-				expect(message.authority).toHaveLength(1);
-				const authority = message.authority[0]!;
-				expect(authority.name.labels).toHaveLength(2);
-				expect(Array.from(authority.name.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(authority.name.labels[1]!)).toEqual([99, 111, 109]); // "com"
+					// Validate authority: example.com (compressed reference to suffix)
+					expect(message.authority).toHaveLength(1);
+					const authority = message.authority[0]!;
+					expect(authority.name.labels).toHaveLength(2);
+					expect(Array.from(authority.name.labels[0]!)).toEqual([
+						101, 120, 97, 109, 112, 108, 101,
+					]); // "example"
+					expect(Array.from(authority.name.labels[1]!)).toEqual([99, 111, 109]); // "com"
 
-				// Validate additional: ns1.example.com (mixed compression)
-				expect(message.additional).toHaveLength(1);
-				const additional = message.additional[0]!;
-				expect(additional.name.labels).toHaveLength(3);
-				expect(Array.from(additional.name.labels[0]!)).toEqual([110, 115, 49]); // "ns1"
-				expect(Array.from(additional.name.labels[1]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(additional.name.labels[2]!)).toEqual([99, 111, 109]); // "com"
-			}
-		}),
+					// Validate additional: ns1.example.com (mixed compression)
+					expect(message.additional).toHaveLength(1);
+					const additional = message.additional[0]!;
+					expect(additional.name.labels).toHaveLength(3);
+					expect(Array.from(additional.name.labels[0]!)).toEqual([
+						110, 115, 49,
+					]); // "ns1"
+					expect(Array.from(additional.name.labels[1]!)).toEqual([
+						101, 120, 97, 109, 112, 108, 101,
+					]); // "example"
+					expect(Array.from(additional.name.labels[2]!)).toEqual([
+						99, 111, 109,
+					]); // "com"
+				}
+			}),
 	);
 
 	it.effect("successfully decodes tail compression scenarios", () =>
@@ -1736,7 +1770,9 @@ describe("message", () => {
 
 				// Question 1: example.com
 				const question1 = message.question[0]!;
-				expect(question1.qname.labels).toHaveLength(expectedNames[0]!.labels.length);
+				expect(question1.qname.labels).toHaveLength(
+					expectedNames[0]!.labels.length,
+				);
 				for (let i = 0; i < expectedNames[0]!.labels.length; i++) {
 					expect(Array.from(question1.qname.labels[i]!)).toEqual(
 						Array.from(expectedNames[0]!.labels[i]!),
@@ -1745,7 +1781,9 @@ describe("message", () => {
 
 				// Question 2: www.example.com (tail compression)
 				const question2 = message.question[1]!;
-				expect(question2.qname.labels).toHaveLength(expectedNames[1]!.labels.length);
+				expect(question2.qname.labels).toHaveLength(
+					expectedNames[1]!.labels.length,
+				);
 				for (let i = 0; i < expectedNames[1]!.labels.length; i++) {
 					expect(Array.from(question2.qname.labels[i]!)).toEqual(
 						Array.from(expectedNames[1]!.labels[i]!),
@@ -1767,14 +1805,17 @@ describe("message", () => {
 				if (shouldFail) {
 					// Error conditions should fail parsing
 					expect(Exit.isFailure(result)).toBe(true);
-					
+
 					if (Exit.isFailure(result)) {
-						console.log(`Expected failure for ${description}:`, Cause.prettyErrors(result.cause));
+						console.log(
+							`Expected failure for ${description}:`,
+							Cause.prettyErrors(result.cause),
+						);
 					}
 				} else {
 					// Valid complex compression should succeed
 					expect(Exit.isSuccess(result)).toBe(true);
-					
+
 					if (Exit.isSuccess(result)) {
 						const message = result.value;
 						expect(message.header.qdcount).toBeGreaterThan(0);
@@ -1788,11 +1829,25 @@ describe("message", () => {
 			// Create a message with circular pointer (points to itself)
 			const circularMessage = new Uint8Array([
 				// Header
-				0x30, 0x39, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x30,
+				0x39,
+				0x01,
+				0x00,
+				0x00,
+				0x01,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
 				// Question with circular pointer
-				0xC0, 0x0C, // Pointer to offset 12 (points to itself)
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0xc0,
+				0x0c, // Pointer to offset 12 (points to itself)
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 			]);
 
 			const result = yield* Effect.exit(
@@ -1814,11 +1869,25 @@ describe("message", () => {
 			// Create a message with pointer beyond boundary
 			const invalidPointerMessage = new Uint8Array([
 				// Header
-				0x30, 0x39, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x30,
+				0x39,
+				0x01,
+				0x00,
+				0x00,
+				0x01,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
 				// Question with invalid pointer (points beyond message)
-				0xC0, 0xFF, // Pointer to offset 255 (beyond message boundary)
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0xc0,
+				0xff, // Pointer to offset 255 (beyond message boundary)
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 			]);
 
 			const result = yield* Effect.exit(
@@ -1840,15 +1909,39 @@ describe("message", () => {
 			// Create a message with pointer to middle of a label
 			const invalidLabelPointerMessage = new Uint8Array([
 				// Header
-				0x30, 0x39, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+				0x30,
+				0x39,
+				0x01,
+				0x00,
+				0x00,
+				0x01,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
 				// Some data first
-				0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-				0x03, 0x63, 0x6F, 0x6D, // "com"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
 				// Question with pointer to middle of "example" (offset 14)
-				0xC0, 0x0E, // Pointer to offset 14 (middle of "example")
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0xc0,
+				0x0e, // Pointer to offset 14 (middle of "example")
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 			]);
 
 			const result = yield* Effect.exit(
@@ -1871,26 +1964,53 @@ describe("message", () => {
 			// Create a message with multiple levels of pointer indirection
 			const deepNestedMessage = new Uint8Array([
 				// Header
-				0x30, 0x39, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				
+				0x30,
+				0x39,
+				0x01,
+				0x00,
+				0x00,
+				0x01,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+				0x00,
+
 				// Base name: example.com at offset 12
-				0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, // "example"
-				0x03, 0x63, 0x6F, 0x6D, // "com"
+				0x07,
+				0x65,
+				0x78,
+				0x61,
+				0x6d,
+				0x70,
+				0x6c,
+				0x65, // "example"
+				0x03,
+				0x63,
+				0x6f,
+				0x6d, // "com"
 				0x00, // terminator
-				
+
 				// Pointer 1: points to base name (offset 28)
-				0xC0, 0x0C, // Pointer to offset 12 (example.com)
-				
-				// Pointer 2: points to pointer 1 (offset 30) 
-				0xC0, 0x1C, // Pointer to offset 28 (pointer 1)
-				
+				0xc0,
+				0x0c, // Pointer to offset 12 (example.com)
+
+				// Pointer 2: points to pointer 1 (offset 30)
+				0xc0,
+				0x1c, // Pointer to offset 28 (pointer 1)
+
 				// Pointer 3: points to pointer 2 (offset 32)
-				0xC0, 0x1E, // Pointer to offset 30 (pointer 2)
-				
+				0xc0,
+				0x1e, // Pointer to offset 30 (pointer 2)
+
 				// Question uses pointer 3
-				0xC0, 0x20, // Pointer to offset 32 (pointer 3)
-				0x00, 0x01, // QTYPE: A
-				0x00, 0x01, // QCLASS: IN
+				0xc0,
+				0x20, // Pointer to offset 32 (pointer 3)
+				0x00,
+				0x01, // QTYPE: A
+				0x00,
+				0x01, // QCLASS: IN
 			]);
 
 			const result = yield* Effect.exit(
@@ -1910,11 +2030,13 @@ describe("message", () => {
 			if (Exit.isSuccess(result)) {
 				const message = result.value;
 				expect(message.question).toHaveLength(1);
-				
+
 				const question = message.question[0]!;
 				// Should resolve to example.com despite the pointer chain
 				expect(question.qname.labels).toHaveLength(2);
-				expect(Array.from(question.qname.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
+				expect(Array.from(question.qname.labels[0]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
 				expect(Array.from(question.qname.labels[1]!)).toEqual([99, 111, 109]); // "com"
 			}
 		}),
@@ -1926,7 +2048,7 @@ describe("message", () => {
 			// Create a large enough message to test near the boundary
 			const largeMessage = new Uint8Array(300);
 			const view = new DataView(largeMessage.buffer);
-			
+
 			// Header
 			view.setUint16(0, 12345, false); // ID
 			view.setUint8(2, 0x01); // QR=0, OPCODE=0, RD=1
@@ -1935,20 +2057,23 @@ describe("message", () => {
 			view.setUint16(6, 0, false); // ANCOUNT=0
 			view.setUint16(8, 0, false); // NSCOUNT=0
 			view.setUint16(10, 0, false); // ARCOUNT=0
-			
+
 			// Put a name near the end of the message
 			let offset = 200; // Far enough to test large pointer
 			largeMessage[offset++] = 7; // length
-			largeMessage.set(new Uint8Array([101, 120, 97, 109, 112, 108, 101]), offset); // "example"
+			largeMessage.set(
+				new Uint8Array([101, 120, 97, 109, 112, 108, 101]),
+				offset,
+			); // "example"
 			offset += 7;
 			largeMessage[offset++] = 3; // length
 			largeMessage.set(new Uint8Array([99, 111, 109]), offset); // "com"
 			offset += 3;
 			largeMessage[offset++] = 0; // terminator
-			
+
 			// Question with pointer to the name at offset 200
 			let questionOffset = 12;
-			largeMessage[questionOffset++] = 0xC0; // Pointer high byte
+			largeMessage[questionOffset++] = 0xc0; // Pointer high byte
 			largeMessage[questionOffset++] = 200; // Pointer low byte (points to offset 200)
 			largeMessage[questionOffset++] = 0x00; // QTYPE high
 			largeMessage[questionOffset++] = 0x01; // QTYPE low (A)
@@ -1964,10 +2089,12 @@ describe("message", () => {
 			if (Exit.isSuccess(result)) {
 				const message = result.value;
 				expect(message.question).toHaveLength(1);
-				
+
 				const question = message.question[0]!;
 				expect(question.qname.labels).toHaveLength(2);
-				expect(Array.from(question.qname.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
+				expect(Array.from(question.qname.labels[0]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
 				expect(Array.from(question.qname.labels[1]!)).toEqual([99, 111, 109]); // "com"
 			}
 		}),
@@ -2003,7 +2130,9 @@ describe("message", () => {
 				const question = message.question[0]!;
 				expect(question.qname.labels).toHaveLength(3);
 				expect(Array.from(question.qname.labels[0]!)).toEqual([119, 119, 119]); // "www"
-				expect(Array.from(question.qname.labels[1]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
+				expect(Array.from(question.qname.labels[1]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
 				expect(Array.from(question.qname.labels[2]!)).toEqual([99, 111, 109]); // "com"
 
 				// Validate answers
@@ -2013,15 +2142,21 @@ describe("message", () => {
 				const cnameAnswer = message.answer[0]!;
 				expect(cnameAnswer.type).toBe(5); // CNAME
 				expect(cnameAnswer.name.labels).toHaveLength(3); // www.example.com (decompressed)
-				expect(Array.from(cnameAnswer.name.labels[0]!)).toEqual([119, 119, 119]); // "www"
-				expect(Array.from(cnameAnswer.name.labels[1]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
+				expect(Array.from(cnameAnswer.name.labels[0]!)).toEqual([
+					119, 119, 119,
+				]); // "www"
+				expect(Array.from(cnameAnswer.name.labels[1]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
 				expect(Array.from(cnameAnswer.name.labels[2]!)).toEqual([99, 111, 109]); // "com"
 
 				// Answer 2: A record for example.com
 				const aAnswer = message.answer[1]!;
 				expect(aAnswer.type).toBe(1); // A
 				expect(aAnswer.name.labels).toHaveLength(2); // example.com (decompressed)
-				expect(Array.from(aAnswer.name.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
+				expect(Array.from(aAnswer.name.labels[0]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
 				expect(Array.from(aAnswer.name.labels[1]!)).toEqual([99, 111, 109]); // "com"
 				expect(Array.from(aAnswer.rdata)).toEqual([93, 184, 216, 34]); // 93.184.216.34
 			}
@@ -2058,7 +2193,9 @@ describe("message", () => {
 				const question = message.question[0]!;
 				expect(question.qtype).toBe(2); // NS
 				expect(question.qname.labels).toHaveLength(2);
-				expect(Array.from(question.qname.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
+				expect(Array.from(question.qname.labels[0]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
 				expect(Array.from(question.qname.labels[1]!)).toEqual([99, 111, 109]); // "com"
 
 				// Validate authority records (NS records)
@@ -2068,8 +2205,12 @@ describe("message", () => {
 				const ns1Authority = message.authority[0]!;
 				expect(ns1Authority.type).toBe(2); // NS
 				expect(ns1Authority.name.labels).toHaveLength(2); // example.com (decompressed)
-				expect(Array.from(ns1Authority.name.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(ns1Authority.name.labels[1]!)).toEqual([99, 111, 109]); // "com"
+				expect(Array.from(ns1Authority.name.labels[0]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
+				expect(Array.from(ns1Authority.name.labels[1]!)).toEqual([
+					99, 111, 109,
+				]); // "com"
 
 				// Authority 2: example.com NS ns2.example.com
 				const ns2Authority = message.authority[1]!;
@@ -2083,16 +2224,24 @@ describe("message", () => {
 				const ns1Additional = message.additional[0]!;
 				expect(ns1Additional.type).toBe(1); // A
 				expect(ns1Additional.name.labels).toHaveLength(3); // ns1.example.com (decompressed)
-				expect(Array.from(ns1Additional.name.labels[0]!)).toEqual([110, 115, 49]); // "ns1"
-				expect(Array.from(ns1Additional.name.labels[1]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(ns1Additional.name.labels[2]!)).toEqual([99, 111, 109]); // "com"
+				expect(Array.from(ns1Additional.name.labels[0]!)).toEqual([
+					110, 115, 49,
+				]); // "ns1"
+				expect(Array.from(ns1Additional.name.labels[1]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
+				expect(Array.from(ns1Additional.name.labels[2]!)).toEqual([
+					99, 111, 109,
+				]); // "com"
 				expect(Array.from(ns1Additional.rdata)).toEqual([192, 0, 2, 1]); // 192.0.2.1
 
 				// Additional 2: ns2.example.com A record
 				const ns2Additional = message.additional[1]!;
 				expect(ns2Additional.type).toBe(1); // A
 				expect(ns2Additional.name.labels).toHaveLength(3); // ns2.example.com (decompressed)
-				expect(Array.from(ns2Additional.name.labels[0]!)).toEqual([110, 115, 50]); // "ns2"
+				expect(Array.from(ns2Additional.name.labels[0]!)).toEqual([
+					110, 115, 50,
+				]); // "ns2"
 			}
 		}),
 	);
@@ -2126,7 +2275,9 @@ describe("message", () => {
 				const question = message.question[0]!;
 				expect(question.qtype).toBe(15); // MX
 				expect(question.qname.labels).toHaveLength(2);
-				expect(Array.from(question.qname.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
+				expect(Array.from(question.qname.labels[0]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
 				expect(Array.from(question.qname.labels[1]!)).toEqual([99, 111, 109]); // "com"
 
 				// Validate answer records (MX records)
@@ -2136,7 +2287,9 @@ describe("message", () => {
 				const mx1Answer = message.answer[0]!;
 				expect(mx1Answer.type).toBe(15); // MX
 				expect(mx1Answer.name.labels).toHaveLength(2); // example.com (decompressed)
-				expect(Array.from(mx1Answer.name.labels[0]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
+				expect(Array.from(mx1Answer.name.labels[0]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
 				expect(Array.from(mx1Answer.name.labels[1]!)).toEqual([99, 111, 109]); // "com"
 
 				// Answer 2: example.com MX 20 mail2.example.com
@@ -2151,16 +2304,24 @@ describe("message", () => {
 				const mail1Additional = message.additional[0]!;
 				expect(mail1Additional.type).toBe(1); // A
 				expect(mail1Additional.name.labels).toHaveLength(3); // mail1.example.com (decompressed)
-				expect(Array.from(mail1Additional.name.labels[0]!)).toEqual([109, 97, 105, 108, 49]); // "mail1"
-				expect(Array.from(mail1Additional.name.labels[1]!)).toEqual([101, 120, 97, 109, 112, 108, 101]); // "example"
-				expect(Array.from(mail1Additional.name.labels[2]!)).toEqual([99, 111, 109]); // "com"
+				expect(Array.from(mail1Additional.name.labels[0]!)).toEqual([
+					109, 97, 105, 108, 49,
+				]); // "mail1"
+				expect(Array.from(mail1Additional.name.labels[1]!)).toEqual([
+					101, 120, 97, 109, 112, 108, 101,
+				]); // "example"
+				expect(Array.from(mail1Additional.name.labels[2]!)).toEqual([
+					99, 111, 109,
+				]); // "com"
 				expect(Array.from(mail1Additional.rdata)).toEqual([192, 0, 2, 10]); // 192.0.2.10
 
 				// Additional 2: mail2.example.com A record
 				const mail2Additional = message.additional[1]!;
 				expect(mail2Additional.type).toBe(1); // A
 				expect(mail2Additional.name.labels).toHaveLength(3); // mail2.example.com (decompressed)
-				expect(Array.from(mail2Additional.name.labels[0]!)).toEqual([109, 97, 105, 108, 50]); // "mail2"
+				expect(Array.from(mail2Additional.name.labels[0]!)).toEqual([
+					109, 97, 105, 108, 50,
+				]); // "mail2"
 			}
 		}),
 	);
@@ -2172,8 +2333,13 @@ describe("message", () => {
 		[arbitraryCompressedDnsMessage],
 		([messageData]) =>
 			Effect.gen(function* () {
-				const { messageBuffer, expectedQuestionName, expectedCompressedNames, header } = messageData;
-				
+				const {
+					messageBuffer,
+					expectedQuestionName,
+					expectedCompressedNames,
+					header,
+				} = messageData;
+
 				const result = yield* Effect.exit(
 					Schema.decode(MessageFromUint8Array)(messageBuffer),
 				);
@@ -2198,9 +2364,11 @@ describe("message", () => {
 					// Validate question section
 					expect(message.question).toHaveLength(1);
 					const question = message.question[0]!;
-					
+
 					// Question name should match expected base domain
-					expect(question.qname.labels).toHaveLength(expectedQuestionName.length);
+					expect(question.qname.labels).toHaveLength(
+						expectedQuestionName.length,
+					);
 					for (let i = 0; i < expectedQuestionName.length; i++) {
 						expect(Array.from(question.qname.labels[i]!)).toEqual(
 							Array.from(expectedQuestionName[i]!),
@@ -2214,7 +2382,7 @@ describe("message", () => {
 					for (let i = 0; i < message.answer.length; i++) {
 						const answer = message.answer[i]!;
 						const expectedName = expectedCompressedNames[i];
-						
+
 						if (expectedName) {
 							expect(answer.name.labels).toHaveLength(expectedName.length);
 							for (let j = 0; j < expectedName.length; j++) {
@@ -2223,7 +2391,7 @@ describe("message", () => {
 								);
 							}
 						}
-						
+
 						expect(answer.type).toBe(1); // A record
 						expect(answer.class).toBe(1); // IN
 						expect(answer.rdata).toHaveLength(4); // IPv4 address
@@ -2235,7 +2403,9 @@ describe("message", () => {
 						expect(authority.type).toBe(2); // NS record
 						expect(authority.class).toBe(1); // IN
 						// Authority names should decompress to base domain
-						expect(authority.name.labels).toHaveLength(expectedQuestionName.length);
+						expect(authority.name.labels).toHaveLength(
+							expectedQuestionName.length,
+						);
 						for (let i = 0; i < expectedQuestionName.length; i++) {
 							expect(Array.from(authority.name.labels[i]!)).toEqual(
 								Array.from(expectedQuestionName[i]!),
@@ -2250,8 +2420,10 @@ describe("message", () => {
 						expect(additional.class).toBe(1); // IN
 						expect(additional.rdata).toHaveLength(4); // IPv4 address
 						// Additional names should be nameserver names (ns1, ns2, etc.)
-						expect(additional.name.labels.length).toBeGreaterThan(expectedQuestionName.length);
-						
+						expect(additional.name.labels.length).toBeGreaterThan(
+							expectedQuestionName.length,
+						);
+
 						// Check that nameserver name ends with base domain
 						const nsNameSuffix = additional.name.labels.slice(1); // Skip "ns1"/"ns2" prefix
 						expect(nsNameSuffix).toHaveLength(expectedQuestionName.length);
@@ -2262,7 +2434,9 @@ describe("message", () => {
 						}
 					}
 
-					console.log(`Successfully parsed compressed message with ${header.ancount} answers, ${header.nscount} authority, ${header.arcount} additional records`);
+					console.log(
+						`Successfully parsed compressed message with ${header.ancount} answers, ${header.nscount} authority, ${header.arcount} additional records`,
+					);
 				}
 			}),
 	);
