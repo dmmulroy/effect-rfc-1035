@@ -352,10 +352,6 @@ const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
 					Effect.mapError(Struct.get("issue")),
 				);
 
-				// const qname = yield* decodeNameFromUint8Array(uint8Array).pipe(
-				// 	Effect.mapError(Struct.get("issue")),
-				// );
-
 				const dataView = new DataView(
 					uint8Array.buffer,
 					uint8Array.byteOffset,
@@ -363,8 +359,6 @@ const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
 				);
 
 				let offset = qname.encodedByteLength;
-
-				console.log({ qname });
 
 				const qtypeResult = Either.map(
 					getUint16(dataView, ++offset, ast),
@@ -379,8 +373,6 @@ const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
 					Struct.get("issue"),
 				);
 
-				console.log({ qtype });
-
 				const qclassResult = Either.map(
 					getUint16(dataView, offset + 2, ast),
 					decodeQClass,
@@ -394,7 +386,6 @@ const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
 					qclassResult.right,
 					Struct.get("issue"),
 				);
-				console.log({ qclass });
 
 				const question = Question.make({
 					qname,

@@ -57,7 +57,8 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 
 					questions.push(question);
 
-					cursor.offset += encodedByteLength;
+					// Progress the cursor to the next question
+					cursor.offset += encodedByteLength + 1;
 				}
 
 				// --- Answers ---
@@ -68,8 +69,8 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 						yield* decodeResourceRecordFromDnsPacketCursor(cursor);
 					answers.push(answer);
 
-					// 4 bytes for qtype, qclass
-					cursor.offset += encodedByteLength;
+					// Progress the cursor to the next question
+					cursor.offset += encodedByteLength + 1;
 				}
 
 				// --- Nameserver Answers ---
@@ -80,8 +81,8 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 						yield* decodeResourceRecordFromDnsPacketCursor(cursor);
 					authorityRecords.push(authorityRecord);
 
-					// 4 bytes for qtype, qclass
-					cursor.offset += encodedByteLength;
+					// Progress the cursor to the next question
+					cursor.offset += encodedByteLength + 1;
 				}
 
 				// --- Additional ---
@@ -92,7 +93,8 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 						yield* decodeResourceRecordFromDnsPacketCursor(cursor);
 					additionalRecords.push(additionalRecord);
 
-					cursor.offset += encodedByteLength;
+					// Progress the cursor to the next question
+					cursor.offset += encodedByteLength + 1;
 				}
 
 				return {

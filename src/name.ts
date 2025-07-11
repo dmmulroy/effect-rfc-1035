@@ -343,7 +343,7 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 							return yield* ParseResult.fail(pointerAndOffsetResult.left);
 						}
 
-						offset = getOffset(pointerAndOffsetResult.right);
+						offset = getPointerOffset(pointerAndOffsetResult.right);
 
 						// Increment bytes consumed by the pointer + offset 16 bits (e.g. 2 bytes)
 						bytesConsumed += 2;
@@ -408,68 +408,10 @@ export const decodeNameFromDnsPacketCursor = Schema.decode(
 	NameFromDnsPacketCursor,
 );
 
-// if (isPointer) {
-// 	const pointerOffset =
-// 		(dataView.getUint16(offset, false) << 0x14) >>> 0x14;
-//
-// 	let previousOffset = 0;
-//
-// 	const previousUint8Array = uint8Array.subarray(pointerOffset, offset);
-//
-// 	const previousDataView = new DataView(
-// 		previousUint8Array.buffer,
-// 		previousUint8Array.byteOffset,
-// 		previousUint8Array.byteLength,
-// 	);
-//
-// 	while (true) {
-// 		const previousLength = previousDataView.getUint8(offset);
-//
-// 		// found the null terminating byte
-// 		if (previousLength === 0) {
-// 			break;
-// 		}
-//
-// 		if (
-// 			previousOffset + 1 + previousLength >
-// 			previousUint8Array.length
-// 		) {
-// 			return ParseResult.fail(
-// 				new ParseResult.Type(
-// 					ast,
-// 					previousUint8Array,
-// 					`NAME label overruns buffer at offset ${previousOffset}`,
-// 				),
-// 			);
-// 		}
-//
-// 		const value = previousUint8Array.subarray(
-// 			previousOffset + 1,
-// 			previousOffset + 1 + previousLength,
-// 		);
-//
-// 		if (value.length > 63) {
-// 			return ParseResult.fail(
-// 				new ParseResult.Type(
-// 					ast,
-// 					previousOffset,
-// 					`NAME label must be 63 bytes or less, received ${value.length}`,
-// 				),
-// 			);
-// 		}
-//
-// 		name.push(value);
-// 		previousOffset += previousLength + 1;
-// 	}
-//
-// 	offset += 2;
-// 	break;
-// }
-
 function byteIsPointer(byte: number) {
 	return (byte & 0xc0) === 0xc0;
 }
 
-function getOffset(uint16: number) {
+function getPointerOffset(uint16: number) {
 	return uint16 & 0x3fff;
 }
