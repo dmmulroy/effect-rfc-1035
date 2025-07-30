@@ -361,13 +361,14 @@ const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
 				let offset = qname.encodedByteLength;
 
 				const qtypeResult = Either.map(
-					getUint16(dataView, ++offset, ast),
+					getUint16(dataView, offset, ast),
 					decodeQType,
 				);
 
 				if (Either.isLeft(qtypeResult)) {
 					return yield* ParseResult.fail(qtypeResult.left);
 				}
+
 				const qtype = yield* Effect.mapError(
 					qtypeResult.right,
 					Struct.get("issue"),
@@ -393,6 +394,7 @@ const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
 					qclass,
 				});
 
+				console.log({ question });
 				return {
 					question,
 					// 4 bytes for qtype, qclass

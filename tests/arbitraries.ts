@@ -1574,6 +1574,8 @@ export const arbitraryRfc1035CompressionExample = {
 			0x01, // QCLASS: IN
 		]);
 
+		console.log({ message });
+
 		return message;
 	})(),
 	expectedNames: [

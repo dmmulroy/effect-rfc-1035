@@ -58,10 +58,9 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 					questions.push(question);
 
 					// Progress the cursor to the next question
-					cursor.offset += encodedByteLength + 1;
+					cursor.offset += encodedByteLength;
 				}
 
-				console.log("HERE?");
 				// --- Answers ---
 				let answers: ResourceRecord[] = [];
 
@@ -71,7 +70,7 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 					answers.push(answer);
 
 					// Progress the cursor to the next question
-					cursor.offset += encodedByteLength + 1;
+					cursor.offset += encodedByteLength;
 				}
 
 				// --- Nameserver Answers ---
@@ -83,7 +82,7 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 					authorityRecords.push(authorityRecord);
 
 					// Progress the cursor to the next question
-					cursor.offset += encodedByteLength + 1;
+					cursor.offset += encodedByteLength;
 				}
 
 				// --- Additional ---
@@ -95,7 +94,7 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 					additionalRecords.push(additionalRecord);
 
 					// Progress the cursor to the next question
-					cursor.offset += encodedByteLength + 1;
+					cursor.offset += encodedByteLength;
 				}
 
 				return {

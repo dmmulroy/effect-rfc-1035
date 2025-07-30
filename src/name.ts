@@ -134,8 +134,8 @@ export const Name = Schema.Struct({
 			}
 
 			// ++bytes for null terminator byte
-			if (bytes === 0 || ++bytes > 255) {
-				return `Name must be between 1 and 255 bytes, recieved '${bytes}'`;
+			if (++bytes > 255) {
+				return `Name must be between 0 and 255 bytes, recieved '${bytes}'`;
 			}
 			return undefined;
 		}),
@@ -300,15 +300,7 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 						),
 					);
 				}
-				console.log(
-					"name\n",
-					Array.from(uint8Array).map((byte) => byte.toString(2)),
-				);
 
-				// The bug is that the dataView (and uint8Array var) is constrained to
-				// a view of the data/packet that starts at the answer, so when we go to
-				// jump back to the question NAME, we don't have that data in the uint8Array
-				// or dataView
 				let dataView = new DataView(
 					uint8Array.buffer,
 					uint8Array.byteOffset,
@@ -329,9 +321,6 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 					}
 
 					const byte = byteResult.right;
-					if (encounteredPointer) {
-						console.log({ byte });
-					}
 
 					const isPointer = byteIsPointer(byte);
 
@@ -372,6 +361,9 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 
 					// null terminating byte
 					if (length === 0) {
+						if (encounteredPointer === false) {
+							bytesConsumed++;
+						}
 						break;
 					}
 
@@ -386,8 +378,10 @@ const NameFromDnsPacketCursor = Schema.transformOrFail(
 						);
 					}
 
+					const buffer = encounteredPointer ? cursor.uint8Array : uint8Array;
+
 					const label = yield* decodeLabel(
-						uint8Array.subarray(offset + 1, offset + 1 + length),
+						buffer.subarray(offset + 1, offset + 1 + length),
 					).pipe(Effect.mapError(Struct.get("issue")));
 
 					nameSize += label.byteLength;

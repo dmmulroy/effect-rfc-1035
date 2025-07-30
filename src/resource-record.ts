@@ -1,3 +1,4 @@
+import { equal } from "node:assert";
 import { Effect, Either, ParseResult, Schema, Struct } from "effect";
 import {
 	Name,
@@ -427,12 +428,7 @@ const ResourceRecordWithEncodedByteLengthFromDnsPacketCursor =
 						Effect.mapError(Struct.get("issue")),
 					);
 
-					// Calculate offset manually since we know the name structure
-					let offset = 0;
-					for (let idx = 0; idx < name.labels.length; idx++) {
-						offset += 1 + (name.labels[idx]?.byteLength ?? 0);
-					}
-					offset++; // null terminator
+					let offset = name.encodedByteLength;
 
 					const typeResult = getUint16(dataView, offset, ast);
 
