@@ -1673,7 +1673,7 @@ describe("message", () => {
 		}),
 	);
 
-	it.effect(
+	it.effect.only(
 		"successfully decodes messages with multiple compression scenarios",
 		() =>
 			Effect.gen(function* () {
@@ -1687,6 +1687,7 @@ describe("message", () => {
 					console.log(Cause.prettyErrors(result.cause));
 				}
 
+				// expect(result).toBe(true);
 				expect(Exit.isSuccess(result)).toBe(true);
 
 				// TODO: Start Here on Thursday

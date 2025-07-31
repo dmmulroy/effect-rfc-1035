@@ -1,5 +1,5 @@
 import { equal } from "node:assert";
-import { Effect, Either, ParseResult, Schema, Struct } from "effect";
+import { Effect, Either, ParseResult, Record, Schema, Struct } from "effect";
 import {
 	Name,
 	decodeNameFromDnsPacketCursor,
@@ -113,6 +113,25 @@ export const RRTypeNameToRRType = {
 	TXT: 16,
 } as const;
 
+export const RRTypeToRRTypeName = {
+	1: "A",
+	2: "NS",
+	3: "MD",
+	4: "MF",
+	5: "CNAME",
+	6: "SOA",
+	7: "MB",
+	8: "MG",
+	9: "MR",
+	10: "NULL",
+	11: "WKS",
+	12: "PTR",
+	13: "HINFO",
+	14: "MINFO",
+	15: "MX",
+	16: "TXT",
+} as const;
+
 /**
  * 3.2.4. CLASS values
  *
@@ -132,6 +151,7 @@ export const ResourceRecordClass = Schema.Literal(1, 2, 3, 4).annotations({
 		"CLASS fields appear in resource records. The following CLASS " +
 		"mnemonics",
 });
+
 /**
  * 4.1.3. Resource record format
  *
@@ -538,3 +558,20 @@ const ResourceRecordWithEncodedByteLengthFromDnsPacketCursor =
 export const decodeResourceRecordFromDnsPacketCursor = Schema.decode(
 	ResourceRecordWithEncodedByteLengthFromDnsPacketCursor,
 );
+
+// RR types with domain names that may be compressed:
+// - CNAME - Contains a domain name (CNAME field)
+// - MB - Contains a domain name (MADNAME field)
+// - MD (Obsolete) - Contains a domain name (MADNAME field)
+// - MF (Obsolete) - Contains a domain name (MADNAME field)
+// - MG - Contains a domain name (MGMNAME field)
+// - MINFO - Contains two domain names (RMAILBX and EMAILBX fields)
+// - MR - Contains a domain name (NEWNAME field)
+// - MX - Contains a domain name (EXCHANGE field)
+// - NS - Contains a domain name (NSDNAME field)
+// - PTR - Contains a domain name (PTRDNAME field)
+// - SOA - Contains two domain names (MNAME and RNAME fields)
+
+// function decodeCNameRData(rdata: Uint8Array) {
+//
+// }
