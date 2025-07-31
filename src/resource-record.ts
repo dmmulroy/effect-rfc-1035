@@ -8,6 +8,91 @@ import {
 import { DnsPacketCursor, Uint16, Uint31, isUint31 } from "./types";
 import { getUint16, getUint32 } from "./utils";
 
+export const ResourceRecordTypeV2 = Schema.Literal(
+	"A",
+	"NS",
+	"MD",
+	"MF",
+	"CNAME",
+	"SOA",
+	"MB",
+	"MG",
+	"MR",
+	"NULL",
+	"WKS",
+	"PTR",
+	"HINFO",
+	"MINFO",
+	"MX",
+	"TXT",
+);
+
+const _ = Schema.transformOrFail(Uint16, ResourceRecordTypeV2, {
+	strict: true,
+	decode(uint16, _, ast) {
+		switch (uint16) {
+			case 1: {
+				return ParseResult.succeed("A" as const);
+			}
+			case 2: {
+				return ParseResult.succeed("NS" as const);
+			}
+			case 3: {
+				return ParseResult.succeed("MD" as const);
+			}
+			case 4: {
+				return ParseResult.succeed("MF" as const);
+			}
+			case 5: {
+				return ParseResult.succeed("CNAME" as const);
+			}
+			case 6: {
+				return ParseResult.succeed("SOA" as const);
+			}
+			case 7: {
+				return ParseResult.succeed("MB" as const);
+			}
+			case 8: {
+				return ParseResult.succeed("MG" as const);
+			}
+			case 9: {
+				return ParseResult.succeed("MR" as const);
+			}
+			case 10: {
+				return ParseResult.succeed("NULL" as const);
+			}
+			case 11: {
+				return ParseResult.succeed("WKS" as const);
+			}
+			case 12: {
+				return ParseResult.succeed("PTR" as const);
+			}
+			case 13: {
+				return ParseResult.succeed("HINFO" as const);
+			}
+			case 14: {
+				return ParseResult.succeed("MINFO" as const);
+			}
+			case 15: {
+				return ParseResult.succeed("MX" as const);
+			}
+			case 16: {
+				return ParseResult.succeed("TXT" as const);
+			}
+		}
+
+		return ParseResult.fail(
+			new ParseResult.Type(
+				ast,
+				uint16,
+				`Type must be a integer between the values of 1 and 16. Recieved '${uint16}'`,
+			),
+		);
+	},
+	encode(toI, options, ast, toA) {
+		throw "start here friday";
+	},
+});
 /**
  * 3.2.2. TYPE values
  *

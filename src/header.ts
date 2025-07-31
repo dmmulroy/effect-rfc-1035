@@ -1,14 +1,163 @@
-import {
-	Arbitrary,
-	Effect,
-	Either,
-	FastCheck,
-	ParseResult,
-	Schema,
-	Struct,
-} from "effect";
+import { Effect, Either, ParseResult, Schema, Struct } from "effect";
 import { Bit, DnsPacketCursor, Nibble, Uint16, Uint3 } from "./types";
 import { getUint8, getUint16 } from "./utils";
+
+/**
+ * A four bit field that specifies the kind of query in this message.
+ * This value is set by the originator of a query and copied into the response.
+ * The values are:
+ *
+ * 0   - a standard query (QUERY)
+ * 1   - an inverse query (IQUERY)
+ * 2   - a server status request (STATUS)
+ * 3-15 - reserved for future use
+ */
+const Opcode = Schema.transformOrFail(
+	Nibble,
+	Schema.Literal("QUERY", "IQUERY", "STATUS"),
+	{
+		strict: true,
+		decode(nibble, _, ast) {
+			switch (nibble) {
+				case 0: {
+					return ParseResult.succeed("QUERY" as const);
+				}
+				case 1: {
+					return ParseResult.succeed("IQUERY" as const);
+				}
+				case 2: {
+					return ParseResult.succeed("STATUS" as const);
+				}
+			}
+
+			return ParseResult.fail(
+				new ParseResult.Type(
+					ast,
+					nibble,
+					`opcode must be the literal value 0, 1, or 2. Received '${nibble}'`,
+				),
+			);
+		},
+		encode(opcode) {
+			switch (opcode) {
+				case "QUERY": {
+					return ParseResult.succeed(0);
+				}
+				case "IQUERY": {
+					return ParseResult.succeed(1);
+				}
+				case "STATUS": {
+					return ParseResult.succeed(2);
+				}
+			}
+		},
+	},
+).annotations({
+	identifier: "Opcode",
+	description:
+		"A four bit field that specifies the kind of query in this message.",
+});
+
+// 0
+// NoError
+// No error condition
+// 1
+// FormErr
+// Format error (The name server was unable to interpret the query)
+// 2
+// ServFail
+// Server failure (The name server was unable to process this query due to a problem with the name server)
+// 3
+// NXDomain
+// Name Error (Meaningful only for responses from an authoritative name server, this code signifies that the domain name referenced in the query does not exist)
+// 4
+// NotImp
+// Not Implemented (The name server does not support the requested kind of query)
+// 5
+// Refused
+// Refused (The name server refuses to perform the specified operation for policy reasons)
+
+/**
+ * Response code - this 4 bit field is set as part of
+ * responses. The values have the following interpretation:
+ * 0   - No error condition
+ * 1   - Format error (unable to interpret the query)
+ * 2   - Server failure (problem with the name server)
+ * 3   - Name Error (domain name referenced in the query does not exist)
+ * 4   - Not Implemented (unsupported kind of query)
+ * 5   - Refused (operation refused for policy reasons)
+ * 6-15 - Reserved for future use
+ */
+const RCode = Schema.transformOrFail(
+	Nibble,
+	Schema.Literal(
+		"NOERROR",
+		"FORMERR",
+		"SERVFAIL",
+		"NXDOMAIN",
+		"NOTIMP",
+		"REFUSED",
+	),
+	{
+		strict: true,
+		decode(nibble, _, ast) {
+			switch (nibble) {
+				case 0: {
+					return ParseResult.succeed("NOERROR" as const);
+				}
+				case 1: {
+					return ParseResult.succeed("FORMERR" as const);
+				}
+				case 2: {
+					return ParseResult.succeed("SERVFAIL" as const);
+				}
+				case 3: {
+					return ParseResult.succeed("NXDOMAIN" as const);
+				}
+				case 4: {
+					return ParseResult.succeed("NOTIMP" as const);
+				}
+				case 4: {
+					return ParseResult.succeed("REFUSED" as const);
+				}
+			}
+
+			return ParseResult.fail(
+				new ParseResult.Type(
+					ast,
+					nibble,
+					`opcode must be the literal value 0, 1, or 2. Received '${nibble}'`,
+				),
+			);
+		},
+		encode(rcode) {
+			switch (rcode) {
+				case "NOERROR": {
+					return ParseResult.succeed(0 as const);
+				}
+				case "FORMERR": {
+					return ParseResult.succeed(1 as const);
+				}
+				case "SERVFAIL": {
+					return ParseResult.succeed(2 as const);
+				}
+				case "NXDOMAIN": {
+					return ParseResult.succeed(3 as const);
+				}
+				case "NOTIMP": {
+					return ParseResult.succeed(4 as const);
+				}
+				case "REFUSED": {
+					return ParseResult.succeed(5 as const);
+				}
+			}
+		},
+	},
+).annotations({
+	identifier: "RCode",
+	description:
+		"A four bit field that specifies the response code of this message.",
+});
 
 /**
  * 4.1.1. Header section format
@@ -58,7 +207,7 @@ export const Header = Schema.Struct({
 	 * 2   - a server status request (STATUS)
 	 * 3-15 - reserved for future use
 	 */
-	opcode: Nibble,
+	opcode: Opcode,
 
 	/**
 	 * Authoritative Answer - this bit is valid in responses,
@@ -72,7 +221,7 @@ export const Header = Schema.Struct({
 	aa: Bit,
 
 	/**
-	 * TrunCation - specifies that this message was truncated
+	 * Truncation - specifies that this message was truncated
 	 * due to length greater than that permitted on the
 	 * transmission channel.
 	 */
@@ -110,7 +259,7 @@ export const Header = Schema.Struct({
 	 * 5   - Refused (operation refused for policy reasons)
 	 * 6-15 - Reserved for future use
 	 */
-	rcode: Nibble,
+	rcode: RCode,
 
 	/**
 	 * An unsigned 16 bit integer specifying the number of
@@ -199,12 +348,12 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 			const byte3 = byte3Result.right;
 
 			const qr = ((byte2 >> 7) & 0x01) as Bit;
-			const opcode = ((byte2 >> 3) & 0x0f) as Bit;
+			const opcode = ((byte2 >> 3) & 0x0f) as Nibble;
 			const aa = ((byte2 >> 2) & 0x01) as Bit;
 			const z = (byte3 >> 4) & 0x07;
 			const rcode = byte3 & 0x0f;
 
-			if (opcode > 2) {
+			if (opcode > 3) {
 				return ParseResult.fail(
 					new ParseResult.Type(
 						ast,
@@ -240,7 +389,7 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 				);
 			}
 
-			const header = Header.make({
+			return ParseResult.succeed({
 				id: idResult.right,
 				qr: ((byte2 >> 7) & 0x01) as Bit,
 				opcode,
@@ -255,8 +404,6 @@ export const HeaderFromUint8Array = Schema.transformOrFail(
 				nscount: nscountResult.right,
 				arcount: arcountResult.right,
 			});
-
-			return ParseResult.succeed(header);
 		},
 		encode(header) {
 			const buffer = new ArrayBuffer(12);
@@ -294,19 +441,12 @@ export const encodeHeaderToUint8Array = Schema.encode(HeaderFromUint8Array);
 export const decodeSyncHeader = Schema.decodeSync(HeaderFromUint8Array);
 export const encodeSyncHeader = Schema.encodeSync(HeaderFromUint8Array);
 
-// decoding
-// DnsPacketCursor => { header: Heaader, bytesConsumed: number }
-//
-// encoding
-// { header: Heaader, bytesConsumed: number } => DnsPacketCursor
-//
-//
 const HEADER_BYTE_LENGTH = 12;
 
 const HeaderWithBytesConsumedFromDnsPacketCursor = Schema.transformOrFail(
 	DnsPacketCursor.schema,
 	Schema.Struct({
-		header: Header,
+		header: Schema.typeSchema(Header),
 		bytesConsumed: Schema.Int,
 	}),
 	{
@@ -315,10 +455,12 @@ const HeaderWithBytesConsumedFromDnsPacketCursor = Schema.transformOrFail(
 			return decodeHeaderFromUint8Array(
 				cursor.uint8Array.subarray(cursor.offset),
 			).pipe(
-				Effect.map((header) => ({
-					header,
-					bytesConsumed: HEADER_BYTE_LENGTH,
-				})),
+				Effect.map((header) => {
+					return {
+						header,
+						bytesConsumed: HEADER_BYTE_LENGTH,
+					};
+				}),
 				Effect.mapError(Struct.get("issue")),
 			);
 		},

@@ -1,6 +1,7 @@
 import { Schema } from "effect";
-import { uint8Array } from "effect/FastCheck";
 import { Uint8ArrayFromSelf } from "effect/Schema";
+
+export type Nibble = typeof Nibble.Type;
 
 export const Nibble = Schema.Number.pipe(
 	Schema.between(0, 15, {
