@@ -1,19 +1,16 @@
 import { Effect, ParseResult, Schema, Struct } from "effect";
-import { decodeHeaderFromUint8Array, Header } from "./header";
+import {
+	decodeHeaderFromDnsPacket,
+	decodeHeaderFromUint8Array,
+	Header,
+} from "./header";
 import { decodeQuestionFromDnsPacketCursor, Question } from "./question";
 import {
 	decodeResourceRecordFromDnsPacketCursor,
 	ResourceRecord,
+	type EncodedResourceRecord,
 } from "./resource-record";
 import { DnsPacketCursor } from "./types";
-
-export type Message = Readonly<{
-	header: Header;
-	question: readonly Question[];
-	answer: readonly ResourceRecord[];
-	authority: readonly ResourceRecord[];
-	additional: readonly ResourceRecord[];
-}>;
 
 export const Message = Schema.Struct({
 	header: Header,
@@ -26,7 +23,11 @@ export const Message = Schema.Struct({
 	description: "A DNS Packet Message",
 });
 
-const HEADER_BYTE_LENGTH = 12;
+// TODO: start Monday by
+// 1. converting name labels to strings rather than uint8Arrays
+// 2. converting answers/resourceRecords class from integer to string
+export type Message = typeof Message.Type;
+export type _ = Message["answer"];
 
 export const MessageFromUint8Array = Schema.transformOrFail(
 	Schema.Uint8ArrayFromSelf,
@@ -38,15 +39,10 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 				const cursor = DnsPacketCursor.fromUint8Array(uint8Array);
 
 				// --- Header ---
+				const { header, bytesConsumed } =
+					yield* decodeHeaderFromDnsPacket(cursor);
 
-				const headerUint8Array = uint8Array.subarray(
-					cursor.offset,
-					HEADER_BYTE_LENGTH,
-				);
-
-				const header = yield* decodeHeaderFromUint8Array(headerUint8Array);
-
-				cursor.offset += HEADER_BYTE_LENGTH;
+				cursor.offset += bytesConsumed;
 
 				// --- Questions ---
 				let questions: Question[] = [];
@@ -62,7 +58,7 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 				}
 
 				// --- Answers ---
-				let answers: ResourceRecord[] = [];
+				let answers: EncodedResourceRecord[] = [];
 
 				for (let idx = 0; idx < header.ancount; idx++) {
 					const { resourceRecord: answer, encodedByteLength } =
@@ -74,7 +70,7 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 				}
 
 				// --- Nameserver Answers ---
-				let authorityRecords: ResourceRecord[] = [];
+				let authorityRecords: EncodedResourceRecord[] = [];
 
 				for (let idx = 0; idx < header.nscount; idx++) {
 					const { resourceRecord: authorityRecord, encodedByteLength } =
@@ -86,7 +82,7 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 				}
 
 				// --- Additional ---
-				let additionalRecords: ResourceRecord[] = [];
+				let additionalRecords: EncodedResourceRecord[] = [];
 
 				for (let idx = 0; idx < header.arcount; idx++) {
 					const { resourceRecord: additionalRecord, encodedByteLength } =

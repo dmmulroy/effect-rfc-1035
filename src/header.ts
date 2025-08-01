@@ -288,9 +288,11 @@ export const Header = Schema.Struct({
 
 export interface Header extends Schema.Schema.Type<typeof Header> {}
 
+type E = typeof Header.Encoded;
+
 export const HeaderFromUint8Array = Schema.transformOrFail(
 	Schema.Uint8ArrayFromSelf,
-	Header,
+	Schema.encodedSchema(Header),
 	{
 		strict: true,
 		decode(uint8Array, _, ast) {
@@ -446,7 +448,7 @@ const HEADER_BYTE_LENGTH = 12;
 const HeaderWithBytesConsumedFromDnsPacketCursor = Schema.transformOrFail(
 	DnsPacketCursor.schema,
 	Schema.Struct({
-		header: Schema.typeSchema(Header),
+		header: Schema.encodedSchema(Header),
 		bytesConsumed: Schema.Int,
 	}),
 	{

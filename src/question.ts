@@ -5,11 +5,15 @@ import {
 	decodeNameFromUint8Array,
 } from "./name";
 import { getUint16 } from "./utils";
-import { ResourceRecordClass, ResourceRecordType } from "./resource-record";
+import {
+	ResourceRecordClass,
+	ResourceRecordClassInteger,
+	ResourceRecordTypeInteger,
+} from "./resource-record";
 import { DnsPacketCursor } from "./types";
 
 const QTypeSchema = Schema.Union(
-	ResourceRecordType,
+	ResourceRecordTypeInteger,
 	Schema.Literal(
 		/** AFXR - A request for a transfer of an entire zone */
 		252,
@@ -66,7 +70,7 @@ const decodeQTypeFromNumber = Schema.decodeUnknown(QType);
 export const decodeQType = (value: number) => decodeQTypeFromNumber(value);
 
 export const QClassSchema = Schema.Union(
-	ResourceRecordClass,
+	ResourceRecordClassInteger,
 	Schema.Literal(255),
 ).annotations({
 	identifier: "QClass",

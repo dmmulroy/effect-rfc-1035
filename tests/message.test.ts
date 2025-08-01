@@ -82,6 +82,7 @@ describe("message", () => {
 					expect(message.additional).toHaveLength(header.arcount);
 				}
 			}),
+		{ only: true },
 	);
 
 	it.effect.prop(

@@ -1,5 +1,4 @@
-import { equal } from "node:assert";
-import { Effect, Either, ParseResult, Record, Schema, Struct } from "effect";
+import { Effect, Either, ParseResult, Schema, Struct } from "effect";
 import {
 	Name,
 	decodeNameFromDnsPacketCursor,
@@ -7,140 +6,6 @@ import {
 } from "./name";
 import { DnsPacketCursor, Uint16, Uint31, isUint31 } from "./types";
 import { getUint16, getUint32 } from "./utils";
-
-export const ResourceRecordTypeV2 = Schema.Literal(
-	"A",
-	"NS",
-	"MD",
-	"MF",
-	"CNAME",
-	"SOA",
-	"MB",
-	"MG",
-	"MR",
-	"NULL",
-	"WKS",
-	"PTR",
-	"HINFO",
-	"MINFO",
-	"MX",
-	"TXT",
-);
-
-const _ = Schema.transformOrFail(Uint16, ResourceRecordTypeV2, {
-	strict: true,
-	decode(uint16, _, ast) {
-		switch (uint16) {
-			case 1: {
-				return ParseResult.succeed("A" as const);
-			}
-			case 2: {
-				return ParseResult.succeed("NS" as const);
-			}
-			case 3: {
-				return ParseResult.succeed("MD" as const);
-			}
-			case 4: {
-				return ParseResult.succeed("MF" as const);
-			}
-			case 5: {
-				return ParseResult.succeed("CNAME" as const);
-			}
-			case 6: {
-				return ParseResult.succeed("SOA" as const);
-			}
-			case 7: {
-				return ParseResult.succeed("MB" as const);
-			}
-			case 8: {
-				return ParseResult.succeed("MG" as const);
-			}
-			case 9: {
-				return ParseResult.succeed("MR" as const);
-			}
-			case 10: {
-				return ParseResult.succeed("NULL" as const);
-			}
-			case 11: {
-				return ParseResult.succeed("WKS" as const);
-			}
-			case 12: {
-				return ParseResult.succeed("PTR" as const);
-			}
-			case 13: {
-				return ParseResult.succeed("HINFO" as const);
-			}
-			case 14: {
-				return ParseResult.succeed("MINFO" as const);
-			}
-			case 15: {
-				return ParseResult.succeed("MX" as const);
-			}
-			case 16: {
-				return ParseResult.succeed("TXT" as const);
-			}
-		}
-
-		return ParseResult.fail(
-			new ParseResult.Type(
-				ast,
-				uint16,
-				`Type must be a integer between the values of 1 and 16. Recieved '${uint16}'`,
-			),
-		);
-	},
-	encode(toI, options, ast, toA) {
-		throw "start here friday";
-	},
-});
-/**
- * 3.2.2. TYPE values
- *
- * TYPE fields are used in resource records. Note that these types are a
- * subset of QTYPEs.
- *
- * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.2
- */
-export const ResourceRecordType = Schema.Literal(
-	/** A - A host address */
-	1,
-	/** NS - An authoritative name server */
-	2,
-	/** MD - A mail destination (Obsolete - use MX) */
-	3,
-	/** MF - A mail forwarder (Obsolete - use MX) */
-	4,
-	/** CNAME - The canonical name for an alias */
-	5,
-	/** SOA - Marks the start of a zone of authority */
-	6,
-	/** MB - A mailbox domain name (EXPERIMENTAL) */
-	7,
-	/** MG - A mail group member (EXPERIMENTAL) */
-	8,
-	/** MR - A mail rename domain name (EXPERIMENTAL) */
-	9,
-	/** NULL - A null RR (EXPERIMENTAL) */
-	10,
-	/** WKS - A well known service description */
-	11,
-	/** PTR - A domain name pointer */
-	12,
-	/** HINFO - Host information */
-	13,
-	/** MINFO - Mailbox or mail list information */
-	14,
-	/** MX - Mail exchange */
-	15,
-	/** TXT - Text strings */
-	16,
-).annotations({
-	identifier: "Type",
-	description:
-		"TYPE fields are used in resource records. Note that these types are a subset of QTYPEs.",
-});
-
-export type ResourceRecordType = typeof ResourceRecordType.Type;
 
 export const ResourceRecordTypeName = Schema.Literal(
 	"A",
@@ -162,6 +27,201 @@ export const ResourceRecordTypeName = Schema.Literal(
 );
 
 export type ResourceRecordTypeName = typeof ResourceRecordTypeName.Type;
+
+export const ResourceRecordTypeInteger = Schema.Literal(
+	1,
+	2,
+	3,
+	4,
+	5,
+	6,
+	7,
+	8,
+	9,
+	10,
+	11,
+	12,
+	13,
+	14,
+	15,
+	16,
+).annotations({
+	identifier: "Type",
+	description: "Todo",
+});
+
+/**
+ * 3.2.2. TYPE values
+ *
+ * TYPE fields are used in resource records. Note that these types are a
+ * subset of QTYPEs.
+ *
+ * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.2
+ */
+const ResourceRecordType = Schema.transformOrFail(
+	Uint16,
+	ResourceRecordTypeName,
+	{
+		strict: true,
+		decode(uint16, _, ast) {
+			switch (uint16) {
+				case 1: {
+					return ParseResult.succeed("A" as const);
+				}
+				case 2: {
+					return ParseResult.succeed("NS" as const);
+				}
+				case 3: {
+					return ParseResult.succeed("MD" as const);
+				}
+				case 4: {
+					return ParseResult.succeed("MF" as const);
+				}
+				case 5: {
+					return ParseResult.succeed("CNAME" as const);
+				}
+				case 6: {
+					return ParseResult.succeed("SOA" as const);
+				}
+				case 7: {
+					return ParseResult.succeed("MB" as const);
+				}
+				case 8: {
+					return ParseResult.succeed("MG" as const);
+				}
+				case 9: {
+					return ParseResult.succeed("MR" as const);
+				}
+				case 10: {
+					return ParseResult.succeed("NULL" as const);
+				}
+				case 11: {
+					return ParseResult.succeed("WKS" as const);
+				}
+				case 12: {
+					return ParseResult.succeed("PTR" as const);
+				}
+				case 13: {
+					return ParseResult.succeed("HINFO" as const);
+				}
+				case 14: {
+					return ParseResult.succeed("MINFO" as const);
+				}
+				case 15: {
+					return ParseResult.succeed("MX" as const);
+				}
+				case 16: {
+					return ParseResult.succeed("TXT" as const);
+				}
+			}
+
+			return ParseResult.fail(
+				new ParseResult.Type(
+					ast,
+					uint16,
+					`Type must be a integer between the values of 1 and 16. Recieved '${uint16}'`,
+				),
+			);
+		},
+		encode(rtype) {
+			switch (rtype) {
+				case "A": {
+					return ParseResult.succeed(1 as const);
+				}
+				case "NS": {
+					return ParseResult.succeed(2 as const);
+				}
+				case "MD": {
+					return ParseResult.succeed(3 as const);
+				}
+				case "MF": {
+					return ParseResult.succeed(4 as const);
+				}
+				case "CNAME": {
+					return ParseResult.succeed(5 as const);
+				}
+				case "SOA": {
+					return ParseResult.succeed(6 as const);
+				}
+				case "MB": {
+					return ParseResult.succeed(7 as const);
+				}
+				case "MG": {
+					return ParseResult.succeed(8 as const);
+				}
+				case "MR": {
+					return ParseResult.succeed(9 as const);
+				}
+				case "NULL": {
+					return ParseResult.succeed(10 as const);
+				}
+				case "WKS": {
+					return ParseResult.succeed(11 as const);
+				}
+				case "PTR": {
+					return ParseResult.succeed(12 as const);
+				}
+				case "HINFO": {
+					return ParseResult.succeed(13 as const);
+				}
+				case "MINFO": {
+					return ParseResult.succeed(14 as const);
+				}
+				case "MX": {
+					return ParseResult.succeed(15 as const);
+				}
+				case "TXT": {
+					return ParseResult.succeed(16 as const);
+				}
+			}
+		},
+	},
+).annotations({
+	identifier: "Type",
+	description:
+		"TYPE fields are used in resource records. Note that these types are a subset of QTYPEs.",
+});
+
+// export const ResourceRecordType = Schema.Literal(
+// 	/** A - A host address */
+// 	1,
+// 	/** NS - An authoritative name server */
+// 	2,
+// 	/** MD - A mail destination (Obsolete - use MX) */
+// 	3,
+// 	/** MF - A mail forwarder (Obsolete - use MX) */
+// 	4,
+// 	/** CNAME - The canonical name for an alias */
+// 	5,
+// 	/** SOA - Marks the start of a zone of authority */
+// 	6,
+// 	/** MB - A mailbox domain name (EXPERIMENTAL) */
+// 	7,
+// 	/** MG - A mail group member (EXPERIMENTAL) */
+// 	8,
+// 	/** MR - A mail rename domain name (EXPERIMENTAL) */
+// 	9,
+// 	/** NULL - A null RR (EXPERIMENTAL) */
+// 	10,
+// 	/** WKS - A well known service description */
+// 	11,
+// 	/** PTR - A domain name pointer */
+// 	12,
+// 	/** HINFO - Host information */
+// 	13,
+// 	/** MINFO - Mailbox or mail list information */
+// 	14,
+// 	/** MX - Mail exchange */
+// 	15,
+// 	/** TXT - Text strings */
+// 	16,
+// ).annotations({
+// 	identifier: "Type",
+// 	description:
+// 		"TYPE fields are used in resource records. Note that these types are a subset of QTYPEs.",
+// });
+
+export type ResourceRecordType = typeof ResourceRecordType.Type;
 
 export const RRTypeNameToRRType = {
 	/** A host address */
@@ -230,12 +290,43 @@ export const RRTypeToRRTypeName = {
  *
  * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.4
  */
-export const ResourceRecordClass = Schema.Literal(1, 2, 3, 4).annotations({
+export const ResourceRecordClassInteger = Schema.Literal(
+	1,
+	2,
+	3,
+	4,
+).annotations({
 	identifier: "Class",
 	description:
 		"CLASS fields appear in resource records. The following CLASS " +
 		"mnemonics",
 });
+
+export const ResourceRecordClassName = Schema.Literal(
+	"IN",
+	"CS",
+	"CH",
+	"HS",
+).annotations({
+	identifier: "Class",
+	description:
+		"CLASS fields appear in resource records. The following CLASS " +
+		"mnemonics",
+});
+
+export const ResourceRecordClass = Schema.transformOrFail(
+	ResourceRecordClassInteger,
+	ResourceRecordClassName,
+	{
+		strict: true,
+		decode(int) {
+			throw "todo";
+		},
+		encode(name) {
+			throw "todo";
+		},
+	},
+);
 
 /**
  * 4.1.3. Resource record format
@@ -294,7 +385,7 @@ export const ResourceRecordClass = Schema.Literal(1, 2, 3, 4).annotations({
  */
 export const ResourceRecord = Schema.Struct({
 	name: Name,
-	type: Uint16,
+	type: ResourceRecordType,
 	class: Uint16,
 	ttl: Uint31,
 	rdlength: Uint16,
@@ -302,219 +393,23 @@ export const ResourceRecord = Schema.Struct({
 });
 
 export type ResourceRecord = typeof ResourceRecord.Type;
+export type EncodedResourceRecord = typeof ResourceRecord.Encoded;
 
-export const ResourceRecordFromUint8Array = Schema.transformOrFail(
-	Schema.Uint8ArrayFromSelf,
-	ResourceRecord,
-	{
-		strict: true,
-		decode(uint8Array, _, ast) {
-			return Effect.gen(function* () {
-				const dataView = new DataView(
-					uint8Array.buffer,
-					uint8Array.byteOffset,
-					uint8Array.byteLength,
-				);
+type T = typeof ResourceRecordWithEncodedByteLengthFromDnsPacketCursor.Type;
+//   ^?
+declare const x: T;
 
-				const name = yield* decodeNameFromUint8Array(uint8Array).pipe(
-					Effect.mapError(Struct.get("issue")),
-				);
+x.resourceRecord.type;
+//                  ^?
 
-				// Calculate offset manually since we know the name structure
-				let offset = 0;
-				for (let idx = 0; idx < name.labels.length; idx++) {
-					offset += 1 + (name.labels[idx]?.byteLength ?? 0);
-				}
-				offset++; // null terminator
-
-				const typeResult = getUint16(dataView, offset, ast);
-
-				if (Either.isLeft(typeResult)) {
-					return yield* ParseResult.fail(typeResult.left);
-				}
-
-				const type = typeResult.right;
-				offset += 2;
-
-				const resourceClassResult = getUint16(dataView, offset, ast);
-
-				if (Either.isLeft(resourceClassResult)) {
-					return yield* ParseResult.fail(resourceClassResult.left);
-				}
-
-				const resourceClass = resourceClassResult.right;
-
-				offset += 2;
-
-				const ttlResult = getUint32(dataView, offset, ast);
-
-				if (Either.isLeft(ttlResult)) {
-					return yield* ParseResult.fail(ttlResult.left);
-				}
-
-				const ttl = ttlResult.right;
-
-				offset += 4;
-
-				if (!isUint31(ttl)) {
-					return yield* ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							ttl,
-							`TTL must be a 31-bit unsigned integer, received '${ttl}'`,
-						),
-					);
-				}
-
-				const rdlengthResult = getUint16(dataView, offset, ast);
-
-				if (Either.isLeft(rdlengthResult)) {
-					return yield* ParseResult.fail(rdlengthResult.left);
-				}
-
-				const rdlength = rdlengthResult.right;
-
-				offset += 2;
-
-				if (type === RRTypeNameToRRType.A && rdlength !== 4) {
-					return yield* ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							uint8Array,
-							"When a ResourceRecord's TYPE is 1, or an A Record, the RDLENGTH must be " +
-								"4 bytes, representative of an IPv4 address",
-						),
-					);
-				}
-
-				const rdata: Uint8Array = uint8Array.subarray(
-					offset,
-					offset + rdlength,
-				);
-
-				if (rdata.byteLength !== rdlength) {
-					return yield* ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							uint8Array,
-							`RDATA length did not match RDLENGTH. Expected '${rdlength}, received '${rdata.byteLength}'`,
-						),
-					);
-				}
-
-				const resourceRecord = ResourceRecord.make({
-					name,
-					type,
-					class: resourceClass,
-					ttl,
-					rdlength,
-					rdata,
-				});
-
-				return yield* ParseResult.succeed(resourceRecord);
-			});
-		},
-		encode(resourceRecord, _, ast) {
-			/** 1 zero byte (NAME terminator) + type + class + ttl + rdlength + rdata */
-			let bufferLength = 1 + 2 + 2 + 4 + 2 + resourceRecord.rdlength;
-
-			if (resourceRecord.name.labels.length > 255) {
-				return ParseResult.fail(
-					new ParseResult.Type(
-						ast,
-						resourceRecord,
-						`NAME length must be 255 bytes or less, received ${resourceRecord.name.labels.length}`,
-					),
-				);
-			}
-
-			if (
-				resourceRecord.type === RRTypeNameToRRType.A &&
-				resourceRecord.rdlength !== 4
-			) {
-				return ParseResult.fail(
-					new ParseResult.Type(
-						ast,
-						resourceRecord,
-						"When a ResourceRecord's TYPE is 1, or an A Record, the RDLENGTH must be " +
-							"4 bytes, representative of an IPv4 address",
-					),
-				);
-			}
-
-			let nameSize = 0;
-			for (let idx = 0; idx < resourceRecord.name.labels.length; idx++) {
-				const labelLength = resourceRecord.name.labels[idx]?.length ?? 0;
-
-				if (labelLength > 63) {
-					return ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							resourceRecord,
-							`NAME label must be 63 bytes or less, received ${labelLength}`,
-						),
-					);
-				}
-
-				bufferLength += 1 + labelLength;
-				nameSize += labelLength;
-				if (nameSize > 255) {
-					return ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							resourceRecord,
-							`QNAME exceeded maximum size of 255 bytes`,
-						),
-					);
-				}
-			}
-
-			const buffer = new ArrayBuffer(bufferLength);
-			const out = new Uint8Array(buffer);
-			const dataView = new DataView(out.buffer);
-
-			let writeOffset = 0;
-
-			for (const label of resourceRecord.name.labels) {
-				dataView.setUint8(writeOffset++, label.length);
-				out.set(label, writeOffset);
-				writeOffset += label.length;
-			}
-
-			// terminating zero for NAME
-			dataView.setUint8(writeOffset++, 0x00);
-
-			dataView.setUint16(writeOffset, resourceRecord.type, false);
-
-			dataView.setUint16((writeOffset += 2), resourceRecord.class, false);
-
-			dataView.setUint32((writeOffset += 2), resourceRecord.ttl, false);
-
-			dataView.setUint16((writeOffset += 4), resourceRecord.rdlength, false);
-
-			out.set(resourceRecord.rdata, (writeOffset += 2));
-
-			return ParseResult.succeed(new Uint8Array(buffer));
-		},
-	},
-).annotations({
-	identifier: "ResourceRecord",
-	description:
-		"The answer, authority, and additional sections each contain a variable number of resource records. " +
-		"The exact count of these records is indicated by the respective count fields in the DNS message header. " +
-		"Each resource record follows a standardized format to convey information such as domain names, record types, TTL, and associated data.",
-});
-
-export const decodeResourceRecordFromUint8Array = Schema.decode(
-	ResourceRecordFromUint8Array,
-);
-export const encodeResourceRecord = Schema.encode(ResourceRecordFromUint8Array);
+type E = typeof ResourceRecordWithEncodedByteLengthFromDnsPacketCursor.Encoded;
+//   ^?
 
 const ResourceRecordWithEncodedByteLengthFromDnsPacketCursor =
 	Schema.transformOrFail(
 		DnsPacketCursor.schema,
 		Schema.Struct({
-			resourceRecord: ResourceRecord,
+			resourceRecord: Schema.encodedSchema(ResourceRecord),
 			encodedByteLength: Schema.Int,
 		}),
 		{
@@ -610,14 +505,14 @@ const ResourceRecordWithEncodedByteLengthFromDnsPacketCursor =
 						);
 					}
 
-					const resourceRecord = ResourceRecord.make({
+					const resourceRecord = {
 						name,
 						type,
 						class: resourceClass,
 						ttl,
 						rdlength,
 						rdata,
-					});
+					};
 
 					return {
 						resourceRecord,
@@ -638,7 +533,13 @@ const ResourceRecordWithEncodedByteLengthFromDnsPacketCursor =
 				);
 			},
 		},
-	);
+	).annotations({
+		identifier: "ResourceRecord",
+		description:
+			"The answer, authority, and additional sections each contain a variable number of resource records. " +
+			"The exact count of these records is indicated by the respective count fields in the DNS message header. " +
+			"Each resource record follows a standardized format to convey information such as domain names, record types, TTL, and associated data.",
+	});
 
 export const decodeResourceRecordFromDnsPacketCursor = Schema.decode(
 	ResourceRecordWithEncodedByteLengthFromDnsPacketCursor,
