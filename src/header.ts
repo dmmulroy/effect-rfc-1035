@@ -117,7 +117,7 @@ const RCode = Schema.transformOrFail(
 				case 4: {
 					return ParseResult.succeed("NOTIMP" as const);
 				}
-				case 4: {
+				case 5: {
 					return ParseResult.succeed("REFUSED" as const);
 				}
 			}
@@ -286,7 +286,7 @@ export const Header = Schema.Struct({
 	arcount: Uint16,
 });
 
-export interface Header extends Schema.Schema.Type<typeof Header> {}
+export interface Header extends Schema.Schema.Type<typeof Header> { }
 
 type E = typeof Header.Encoded;
 
