@@ -2,6 +2,10 @@ import { Effect, Either, ParseResult, Schema, Struct } from "effect";
 import { Bit, DnsPacketCursor, Nibble, Uint16, Uint3 } from "./types";
 import { getUint8, getUint16 } from "./utils";
 
+
+const OpcodeLiteral = Schema.Literal("QUERY", "IQUERY", "STATUS")
+type OpcodeLiteralType = typeof OpcodeLiteral.Type
+
 /**
  * A four bit field that specifies the kind of query in this message.
  * This value is set by the originator of a query and copied into the response.
@@ -14,10 +18,11 @@ import { getUint8, getUint16 } from "./utils";
  */
 const Opcode = Schema.transformOrFail(
 	Nibble,
-	Schema.Literal("QUERY", "IQUERY", "STATUS"),
+	OpcodeLiteral,
 	{
 		strict: true,
 		decode(nibble, _, ast) {
+
 			switch (nibble) {
 				case 0: {
 					return ParseResult.succeed("QUERY" as const);
@@ -39,17 +44,14 @@ const Opcode = Schema.transformOrFail(
 			);
 		},
 		encode(opcode) {
-			switch (opcode) {
-				case "QUERY": {
-					return ParseResult.succeed(0);
-				}
-				case "IQUERY": {
-					return ParseResult.succeed(1);
-				}
-				case "STATUS": {
-					return ParseResult.succeed(2);
-				}
-			}
+
+			const map = {
+				"QUERY": 0,
+				"IQUERY": 1,
+				"STATUS": 2
+			} as const satisfies Record<OpcodeLiteralType, Nibble>;
+
+			return ParseResult.succeed(map[opcode])
 		},
 	},
 ).annotations({
@@ -77,6 +79,17 @@ const Opcode = Schema.transformOrFail(
 // Refused
 // Refused (The name server refuses to perform the specified operation for policy reasons)
 
+
+const RCodeLiteral = Schema.Literal(
+	"NOERROR",
+	"FORMERR",
+	"SERVFAIL",
+	"NXDOMAIN",
+	"NOTIMP",
+	"REFUSED",
+)
+type RCodeLiteralType = typeof RCodeLiteral.Type
+
 /**
  * Response code - this 4 bit field is set as part of
  * responses. The values have the following interpretation:
@@ -90,14 +103,7 @@ const Opcode = Schema.transformOrFail(
  */
 const RCode = Schema.transformOrFail(
 	Nibble,
-	Schema.Literal(
-		"NOERROR",
-		"FORMERR",
-		"SERVFAIL",
-		"NXDOMAIN",
-		"NOTIMP",
-		"REFUSED",
-	),
+	RCodeLiteral,
 	{
 		strict: true,
 		decode(nibble, _, ast) {
@@ -117,7 +123,7 @@ const RCode = Schema.transformOrFail(
 				case 4: {
 					return ParseResult.succeed("NOTIMP" as const);
 				}
-				case 4: {
+				case 5: {
 					return ParseResult.succeed("REFUSED" as const);
 				}
 			}
@@ -131,26 +137,17 @@ const RCode = Schema.transformOrFail(
 			);
 		},
 		encode(rcode) {
-			switch (rcode) {
-				case "NOERROR": {
-					return ParseResult.succeed(0 as const);
-				}
-				case "FORMERR": {
-					return ParseResult.succeed(1 as const);
-				}
-				case "SERVFAIL": {
-					return ParseResult.succeed(2 as const);
-				}
-				case "NXDOMAIN": {
-					return ParseResult.succeed(3 as const);
-				}
-				case "NOTIMP": {
-					return ParseResult.succeed(4 as const);
-				}
-				case "REFUSED": {
-					return ParseResult.succeed(5 as const);
-				}
-			}
+
+			const map = {
+				NOERROR: 0,
+				FORMERR: 1,
+				SERVFAIL: 2,
+				NXDOMAIN: 3,
+				NOTIMP: 4,
+				REFUSED: 5
+			} as const satisfies Record<RCodeLiteralType, number>;
+
+			return ParseResult.succeed(map[rcode])
 		},
 	},
 ).annotations({
@@ -286,7 +283,7 @@ export const Header = Schema.Struct({
 	arcount: Uint16,
 });
 
-export interface Header extends Schema.Schema.Type<typeof Header> {}
+export interface Header extends Schema.Schema.Type<typeof Header> { }
 
 type E = typeof Header.Encoded;
 
