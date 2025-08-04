@@ -1,9 +1,5 @@
 import { Effect, Either, ParseResult, Schema, Struct } from "effect";
-import {
-	Name,
-	decodeNameFromDnsPacketCursor,
-	decodeNameFromUint8Array,
-} from "./name";
+import { Name, decodeNameFromDnsPacketCursor } from "./name";
 import { DnsPacketCursor, Uint16, Uint31, isUint31 } from "./types";
 import { getUint16, getUint32 } from "./utils";
 
@@ -182,45 +178,6 @@ const ResourceRecordType = Schema.transformOrFail(
 		"TYPE fields are used in resource records. Note that these types are a subset of QTYPEs.",
 });
 
-// export const ResourceRecordType = Schema.Literal(
-// 	/** A - A host address */
-// 	1,
-// 	/** NS - An authoritative name server */
-// 	2,
-// 	/** MD - A mail destination (Obsolete - use MX) */
-// 	3,
-// 	/** MF - A mail forwarder (Obsolete - use MX) */
-// 	4,
-// 	/** CNAME - The canonical name for an alias */
-// 	5,
-// 	/** SOA - Marks the start of a zone of authority */
-// 	6,
-// 	/** MB - A mailbox domain name (EXPERIMENTAL) */
-// 	7,
-// 	/** MG - A mail group member (EXPERIMENTAL) */
-// 	8,
-// 	/** MR - A mail rename domain name (EXPERIMENTAL) */
-// 	9,
-// 	/** NULL - A null RR (EXPERIMENTAL) */
-// 	10,
-// 	/** WKS - A well known service description */
-// 	11,
-// 	/** PTR - A domain name pointer */
-// 	12,
-// 	/** HINFO - Host information */
-// 	13,
-// 	/** MINFO - Mailbox or mail list information */
-// 	14,
-// 	/** MX - Mail exchange */
-// 	15,
-// 	/** TXT - Text strings */
-// 	16,
-// ).annotations({
-// 	identifier: "Type",
-// 	description:
-// 		"TYPE fields are used in resource records. Note that these types are a subset of QTYPEs.",
-// });
-
 export type ResourceRecordType = typeof ResourceRecordType.Type;
 
 export const RRTypeNameToRRType = {
@@ -277,6 +234,18 @@ export const RRTypeToRRTypeName = {
 	16: "TXT",
 } as const;
 
+const ResourceRecordClassName = Schema.Literal(
+	"IN",
+	"CS",
+	"CH",
+	"HS",
+).annotations({
+	identifier: "Class",
+	description:
+		"CLASS fields appear in resource records. The following CLASS " +
+		"mnemonics",
+});
+
 /**
  * 3.2.4. CLASS values
  *
@@ -290,40 +259,50 @@ export const RRTypeToRRTypeName = {
  *
  * @see https://www.rfc-editor.org/rfc/rfc1035.html#section-3.2.4
  */
-export const ResourceRecordClassInteger = Schema.Literal(
-	1,
-	2,
-	3,
-	4,
-).annotations({
-	identifier: "Class",
-	description:
-		"CLASS fields appear in resource records. The following CLASS " +
-		"mnemonics",
-});
-
-export const ResourceRecordClassName = Schema.Literal(
-	"IN",
-	"CS",
-	"CH",
-	"HS",
-).annotations({
-	identifier: "Class",
-	description:
-		"CLASS fields appear in resource records. The following CLASS " +
-		"mnemonics",
-});
-
 export const ResourceRecordClass = Schema.transformOrFail(
-	ResourceRecordClassInteger,
+	Uint16,
 	ResourceRecordClassName,
 	{
 		strict: true,
-		decode(int) {
-			throw "todo";
+		decode(uint16, _, ast) {
+			switch (uint16) {
+				case 1: {
+					return ParseResult.succeed("IN" as const);
+				}
+				case 2: {
+					return ParseResult.succeed("CS" as const);
+				}
+				case 3: {
+					return ParseResult.succeed("CH" as const);
+				}
+				case 4: {
+					return ParseResult.succeed("HS" as const);
+				}
+			}
+
+			return ParseResult.fail(
+				new ParseResult.Type(
+					ast,
+					uint16,
+					`Type must be a integer between the values of 1 and 16. Recieved '${uint16}'`,
+				),
+			);
 		},
 		encode(name) {
-			throw "todo";
+			switch (name) {
+				case "IN": {
+					return ParseResult.succeed(1 as const);
+				}
+				case "CS": {
+					return ParseResult.succeed(2 as const);
+				}
+				case "CH": {
+					return ParseResult.succeed(3 as const);
+				}
+				case "HS": {
+					return ParseResult.succeed(4 as const);
+				}
+			}
 		},
 	},
 );
@@ -386,7 +365,7 @@ export const ResourceRecordClass = Schema.transformOrFail(
 export const ResourceRecord = Schema.Struct({
 	name: Name,
 	type: ResourceRecordType,
-	class: Uint16,
+	class: ResourceRecordClass,
 	ttl: Uint31,
 	rdlength: Uint16,
 	rdata: Schema.Uint8ArrayFromSelf,
@@ -394,16 +373,6 @@ export const ResourceRecord = Schema.Struct({
 
 export type ResourceRecord = typeof ResourceRecord.Type;
 export type EncodedResourceRecord = typeof ResourceRecord.Encoded;
-
-type T = typeof ResourceRecordWithEncodedByteLengthFromDnsPacketCursor.Type;
-//   ^?
-declare const x: T;
-
-x.resourceRecord.type;
-//                  ^?
-
-type E = typeof ResourceRecordWithEncodedByteLengthFromDnsPacketCursor.Encoded;
-//   ^?
 
 const ResourceRecordWithEncodedByteLengthFromDnsPacketCursor =
 	Schema.transformOrFail(

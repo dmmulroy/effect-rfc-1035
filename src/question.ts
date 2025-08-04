@@ -1,12 +1,7 @@
 import { Effect, Either, ParseResult, Schema, Struct } from "effect";
-import {
-	Name,
-	decodeNameFromDnsPacketCursor,
-	decodeNameFromUint8Array,
-} from "./name";
+import { Name, decodeNameFromDnsPacketCursor } from "./name";
 import { getUint16 } from "./utils";
 import {
-	ResourceRecordClass,
 	ResourceRecordClassInteger,
 	ResourceRecordTypeInteger,
 } from "./resource-record";
@@ -166,161 +161,162 @@ export const Question = Schema.Struct({
 });
 
 export type Question = typeof Question.Type;
+export type EncodedQuestion = typeof Question.Encoded;
 
-export const QuestionFromUint8Array = Schema.transformOrFail(
-	Schema.Uint8ArrayFromSelf,
-	Question,
-	{
-		strict: true,
-		decode(uint8Array, _, ast) {
-			return Effect.gen(function* () {
-				if (uint8Array.length < 5) {
-					return yield* ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							uint8Array,
-							`Question must have a minimum length of 5 bytes, received ${uint8Array.length}`,
-						),
-					);
-				}
+// export const QuestionFromUint8Array = Schema.transformOrFail(
+// 	Schema.Uint8ArrayFromSelf,
+// 	Question,
+// 	{
+// 		strict: true,
+// 		decode(uint8Array, _, ast) {
+// 			return Effect.gen(function* () {
+// 				if (uint8Array.length < 5) {
+// 					return yield* ParseResult.fail(
+// 						new ParseResult.Type(
+// 							ast,
+// 							uint8Array,
+// 							`Question must have a minimum length of 5 bytes, received ${uint8Array.length}`,
+// 						),
+// 					);
+// 				}
+//
+// 				if (uint8Array.length > 260) {
+// 					return yield* ParseResult.fail(
+// 						new ParseResult.Type(
+// 							ast,
+// 							uint8Array,
+// 							`Question must have a maximum length of 260 bytes, received ${uint8Array.length}`,
+// 						),
+// 					);
+// 				}
+//
+// 				const qname = yield* decodeNameFromUint8Array(uint8Array).pipe(
+// 					Effect.mapError(Struct.get("issue")),
+// 				);
+//
+// 				const dataView = new DataView(
+// 					uint8Array.buffer,
+// 					uint8Array.byteOffset,
+// 					uint8Array.byteLength,
+// 				);
+//
+// 				const offset = qname.encodedByteLength;
+//
+// 				const qtypeResult = Either.map(
+// 					getUint16(dataView, offset, ast),
+// 					decodeQType,
+// 				);
+//
+// 				if (Either.isLeft(qtypeResult)) {
+// 					return yield* ParseResult.fail(qtypeResult.left);
+// 				}
+// 				const qtype = yield* Effect.mapError(
+// 					qtypeResult.right,
+// 					Struct.get("issue"),
+// 				);
+//
+// 				const qclassResult = Either.map(
+// 					getUint16(dataView, offset + 2, ast),
+// 					decodeQClass,
+// 				);
+//
+// 				if (Either.isLeft(qclassResult)) {
+// 					return yield* ParseResult.fail(qclassResult.left);
+// 				}
+// 				const qclass = yield* Effect.mapError(
+// 					qclassResult.right,
+// 					Struct.get("issue"),
+// 				);
+//
+// 				const question = Question.make({
+// 					qname,
+// 					qtype,
+// 					qclass,
+// 				});
+//
+// 				return question;
+// 			});
+// 		},
+// 		encode(question, _, ast) {
+// 			/** 1 zero byte (QNAME terminator) + 4 bytes for QTYPE & QCLASS */
+// 			const terminatorAndQFieldsLength = 5;
+// 			let bufferLength = terminatorAndQFieldsLength;
+//
+// 			if (question.qname.labels.length > 255) {
+// 				return ParseResult.fail(
+// 					new ParseResult.Type(
+// 						ast,
+// 						question,
+// 						`QNAME length must be 255 bytes or less, received ${question.qname.labels.length}`,
+// 					),
+// 				);
+// 			}
+//
+// 			let qnameSize = 0;
+// 			for (let idx = 0; idx < question.qname.labels.length; idx++) {
+// 				const labelLength = question.qname.labels[idx]?.length ?? 0;
+//
+// 				if (labelLength > 63) {
+// 					return ParseResult.fail(
+// 						new ParseResult.Type(
+// 							ast,
+// 							question,
+// 							`QNAME label must be 63 bytes or less, received ${labelLength}`,
+// 						),
+// 					);
+// 				}
+//
+// 				bufferLength += 1 + labelLength;
+// 				qnameSize += labelLength;
+//
+// 				if (qnameSize > 255) {
+// 					return ParseResult.fail(
+// 						new ParseResult.Type(
+// 							ast,
+// 							question,
+// 							`QNAME exceeded maximum size of 255 bytes`,
+// 						),
+// 					);
+// 				}
+// 			}
+//
+// 			const buffer = new ArrayBuffer(bufferLength);
+// 			const out = new Uint8Array(buffer);
+// 			const dataView = new DataView(out.buffer);
+//
+// 			let writeOffset = 0;
+//
+// 			for (const label of question.qname.labels) {
+// 				dataView.setUint8(writeOffset++, label.length);
+// 				out.set(label, writeOffset);
+// 				writeOffset += label.length;
+// 			}
+//
+// 			// terminating zero for QNAME
+// 			dataView.setUint8(writeOffset++, 0x00);
+//
+// 			dataView.setUint16(writeOffset, question.qtype, false);
+// 			writeOffset += 2;
+//
+// 			dataView.setUint16(writeOffset, question.qclass, false);
+//
+// 			return ParseResult.succeed(new Uint8Array(buffer));
+// 		},
+// 	},
+// );
 
-				if (uint8Array.length > 260) {
-					return yield* ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							uint8Array,
-							`Question must have a maximum length of 260 bytes, received ${uint8Array.length}`,
-						),
-					);
-				}
-
-				const qname = yield* decodeNameFromUint8Array(uint8Array).pipe(
-					Effect.mapError(Struct.get("issue")),
-				);
-
-				const dataView = new DataView(
-					uint8Array.buffer,
-					uint8Array.byteOffset,
-					uint8Array.byteLength,
-				);
-
-				const offset = qname.encodedByteLength;
-
-				const qtypeResult = Either.map(
-					getUint16(dataView, offset, ast),
-					decodeQType,
-				);
-
-				if (Either.isLeft(qtypeResult)) {
-					return yield* ParseResult.fail(qtypeResult.left);
-				}
-				const qtype = yield* Effect.mapError(
-					qtypeResult.right,
-					Struct.get("issue"),
-				);
-
-				const qclassResult = Either.map(
-					getUint16(dataView, offset + 2, ast),
-					decodeQClass,
-				);
-
-				if (Either.isLeft(qclassResult)) {
-					return yield* ParseResult.fail(qclassResult.left);
-				}
-				const qclass = yield* Effect.mapError(
-					qclassResult.right,
-					Struct.get("issue"),
-				);
-
-				const question = Question.make({
-					qname,
-					qtype,
-					qclass,
-				});
-
-				return question;
-			});
-		},
-		encode(question, _, ast) {
-			/** 1 zero byte (QNAME terminator) + 4 bytes for QTYPE & QCLASS */
-			const terminatorAndQFieldsLength = 5;
-			let bufferLength = terminatorAndQFieldsLength;
-
-			if (question.qname.labels.length > 255) {
-				return ParseResult.fail(
-					new ParseResult.Type(
-						ast,
-						question,
-						`QNAME length must be 255 bytes or less, received ${question.qname.labels.length}`,
-					),
-				);
-			}
-
-			let qnameSize = 0;
-			for (let idx = 0; idx < question.qname.labels.length; idx++) {
-				const labelLength = question.qname.labels[idx]?.length ?? 0;
-
-				if (labelLength > 63) {
-					return ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							question,
-							`QNAME label must be 63 bytes or less, received ${labelLength}`,
-						),
-					);
-				}
-
-				bufferLength += 1 + labelLength;
-				qnameSize += labelLength;
-
-				if (qnameSize > 255) {
-					return ParseResult.fail(
-						new ParseResult.Type(
-							ast,
-							question,
-							`QNAME exceeded maximum size of 255 bytes`,
-						),
-					);
-				}
-			}
-
-			const buffer = new ArrayBuffer(bufferLength);
-			const out = new Uint8Array(buffer);
-			const dataView = new DataView(out.buffer);
-
-			let writeOffset = 0;
-
-			for (const label of question.qname.labels) {
-				dataView.setUint8(writeOffset++, label.length);
-				out.set(label, writeOffset);
-				writeOffset += label.length;
-			}
-
-			// terminating zero for QNAME
-			dataView.setUint8(writeOffset++, 0x00);
-
-			dataView.setUint16(writeOffset, question.qtype, false);
-			writeOffset += 2;
-
-			dataView.setUint16(writeOffset, question.qclass, false);
-
-			return ParseResult.succeed(new Uint8Array(buffer));
-		},
-	},
-);
-
-export const decodeQuestionFromUint8Array = Schema.decode(
-	QuestionFromUint8Array,
-);
-
-export const encodeQuestionToUint8Array = Schema.encode(QuestionFromUint8Array);
+// export const decodeQuestionFromUint8Array = Schema.decode(
+// 	QuestionFromUint8Array,
+// );
+//
+// export const encodeQuestionToUint8Array = Schema.encode(QuestionFromUint8Array);
 
 const MAX_QUESTION_BYTE_LENGTH = 261;
 
 const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
 	DnsPacketCursor.schema,
 	Schema.Struct({
-		question: Question,
+		question: Schema.encodedSchema(Question),
 		encodedByteLength: Schema.Int,
 	}),
 	{
@@ -392,11 +388,11 @@ const QuestionWithEncodedByteLengthFromDnsPacketCursor = Schema.transformOrFail(
 					Struct.get("issue"),
 				);
 
-				const question = Question.make({
+				const question = {
 					qname,
 					qtype,
 					qclass,
-				});
+				};
 
 				console.log({ question });
 				return {

@@ -1,10 +1,10 @@
 import { Effect, ParseResult, Schema, Struct } from "effect";
+import { decodeHeaderFromDnsPacket, Header } from "./header";
 import {
-	decodeHeaderFromDnsPacket,
-	decodeHeaderFromUint8Array,
-	Header,
-} from "./header";
-import { decodeQuestionFromDnsPacketCursor, Question } from "./question";
+	decodeQuestionFromDnsPacketCursor,
+	Question,
+	type EncodedQuestion,
+} from "./question";
 import {
 	decodeResourceRecordFromDnsPacketCursor,
 	ResourceRecord,
@@ -23,9 +23,6 @@ export const Message = Schema.Struct({
 	description: "A DNS Packet Message",
 });
 
-// TODO: start Monday by
-// 1. converting name labels to strings rather than uint8Arrays
-// 2. converting answers/resourceRecords class from integer to string
 export type Message = typeof Message.Type;
 export type _ = Message["answer"];
 
@@ -45,12 +42,14 @@ export const MessageFromUint8Array = Schema.transformOrFail(
 				cursor.offset += bytesConsumed;
 
 				// --- Questions ---
-				let questions: Question[] = [];
+				let questions: EncodedQuestion[] = [];
 
 				for (let idx = 0; idx < header.qdcount; idx++) {
 					const { question, encodedByteLength } =
 						yield* decodeQuestionFromDnsPacketCursor(cursor);
 
+					// TODO: qname needs be labels as uint8Arrays
+					question.qname;
 					questions.push(question);
 
 					// Progress the cursor to the next question
